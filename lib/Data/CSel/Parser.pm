@@ -10,92 +10,75 @@ use warnings;
 use Exporter qw(import);
 our @EXPORT_OK = qw(parse_csel_expr);
 
-our $re_elem =
-    qr/
-          [A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z0-9_]+)*
-      /x;
-
-our $re_attr_name =
-    qr/
-          [A-Za-z_][A-Za-z0-9_]*
-      /x;
-
-our $re_attr_op_val =
-    qr/
-          \w+
-      /x;
-
-our $re_pseudoclass_name =
-    qr/
-          [A-Za-z_][A-Za-z0-9_]*(-[A-Za-z0-9_]+)*
-      /x;
-
-our $re_attr_filter =
-    qr/
-          (?P<attr_name>$re_attr_name)
-          (?:
-              \s*
-              (?P<attr_op>
-                  =  |
-                  !=
-              )
-              \s*
-              (?P<attr_op_val>
-                  $re_attr_op_val
-              )
-          )?
-      /x;
-
-our $re_pseudoclass_arg =
-    qr/
-          \w+
-      /x;
-
-our $re_pseudoclass_filter =
-    qr/
-          (?P<pseudoclass_name>$re_pseudoclass_name)
-          (?:
-              \(
-              (?P<pseudoclass_args>
-                  (?:$re_pseudoclass_arg)
-                  (?:\s*,\s*(?:$re_pseudoclass_arg))*
-              )
-              \)
-          )?
-      /x;
-
-our $re_filter =
-    qr/
-          (?P<attr_filter>\[$re_attr_filter\]) |
-          (?P<pseudoclass_filter>:$re_pseudoclass_filter)
-      /x;
-
-# elem with zero or more filters
-our $re_elemf =
-    qr/
-          (?P<elem>$re_elem)
-          (?P<filters>(?:$re_filter)*)
-      /x;
-
-our $re_pattern =
-    qr/
-          (?:$re_elemf)
-      /x;
+use DD;
 
 our $re =
-    qr/
-          \A\s*
-          (?:$re_pattern)
-          \s*\z
-      /x;
+    qr{
+          (?&VALUE) (?{ $_ = $^R->[1] })
+          (?(DEFINE)
+              (?<ATTR_NAME>
+                  [A-Za-z_][A-Za-z0-9_]*
+              )
+
+              (?<ATTR_FILTER>
+                  \[((?&ATTR_NAME))\]
+                  (?{
+                      $^R->[1]{filters} //= [];
+                      push @{ $^R->[1]{filters} }, {type=>'attr', attr=>$^N};
+                      [$^R, $^R->[1]];
+                  })
+              )
+
+              (?<PSEUDOCLASS_NAME>
+                  [A-Za-z_][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)*
+              )
+
+              (?<PSEUDOCLASS_FILTER>
+                  :((?&PSEUDOCLASS_NAME))
+                  (?{
+                      $^R->[1]{filters} //= [];
+                      push @{ $^R->[1]{filters} }, {type=>'pseudoclass', pseudoclass=>$^N};
+                      [$^R, $^R->[1]];
+                  })
+              )
+
+              (?<FILTERS>
+                  (?&ATTR_FILTER)
+                  (?:
+                      \s*
+                      (?&ATTR_FILTER)+
+                  )?
+
+                  |
+
+                  (?&PSEUDOCLASS_FILTER)
+                  (?:
+                      \s*
+                      (?&PSEUDOCLASS_FILTER)+
+                  )?
+
+              )
+
+              (?<ELEM>
+                 ([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z0-9_]+)*)
+                 (?{ [$^R, {elem=>$^N}] })
+                 (?&FILTERS)?
+              )
+
+              (?<VALUE>
+                  \s*
+                  (?&ELEM)
+                  \s*
+              )
+          ) # DEFINE
+  }x;
 
 sub parse_csel_expr {
-    my $expr = shift;
-    if ($expr =~ $re) {
-        return {%+};
-    } else {
-        return undef;
-    }
+    local $_ = shift;
+    local $^R;
+    eval { m{\A$re\z}; } and return $_;
+    die $@ if $@;
+    return undef;
 }
 
 1;

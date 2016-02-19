@@ -22,8 +22,8 @@ sub new {
 
 =head1 DESCRIPTION
 
-This class lets you use a query language that is similar to CSS Selector to
-select nodes of object/data tree.
+This class lets you use a query language (hereby named CSel) that is similar to
+CSS Selector to select nodes of object/data tree.
 
 
 =head1 METHODS

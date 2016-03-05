@@ -162,65 +162,302 @@ combinators. I<Combinators> are: white space, C<< > >>, and C<+>.
 A I<simple selector> is either a type selector or universal selector followed
 immediately by zero or more attribute selectors or pseudo-classes, in any order.
 
-A I<type selector> is a Perl class/package name, e.g.:
+=head1 Type selector
+
+A I<type selector> is a Perl class/package name.
+
+Example:
 
  My::Class
 
+will match any C<My::Class> object.
+
+=head2 Universal selector
+
 A I<universal selector> is C<*> and matches any class/package.
+
+Example:
+
+ *
+
+will match any object.
 
 =head2 Attribute selector
 
 An I<attribute selector> filters objects based on their attributes, and is
 either:
 
-C<[>I<attr>C<]> to filter only objects that C<can()> I<attr>;
+=over
 
-C<[!>I<attr>C<]> to filter only objects that cannot I<attr>;
+=item * C<[>I<attr>C<]>
 
-C<[>I<attr> C<=> I<value>C<]> or C<[>I<attr> C<==> I<value>C<]> to filter
-only objects where the attribute named I<attr> has the value I<value> (compared
-numerically);
+Filter only objects that C<can()> I<attr>.
 
-C<[>I<attr> C<eq> I<value>C<]> to filter only objects where the attribute
-named I<attr> has the value I<value> (compared stringily, using Perl's C<eq>
-operator);
+Example:
 
-C<[>I<attr> C<!=> I<value>C<]>
+ *[quack]
 
-C<[>I<attr> C<ne> I<value>C<]>
+selects any object that can C<quack()>.
 
-C<[>I<attr> C<< > >> I<value>C<]>
+=item * C<[!>I<attr>C<]>
 
-C<[>I<attr> C<gt> I<value>C<]>
+Filter only objects that cannot I<attr>.
 
-C<[>I<attr> C<< >= >> I<value>C<]>
+Example:
 
-C<[>I<attr> C<ge> I<value>C<]>
+ *[!quack]
 
-C<[>I<attr> C<< < >> I<value>C<]>
+selects any object that cannot C<quack()>.
 
-C<[>I<attr> C<lt> I<value>C<]>
+=item * C<[>I<attr> C<=> I<value>C<]> or C<[>I<attr> C<==> I<value>C<]>
 
-C<[>I<attr> C<< <= >> I<value>C<]>
+Filter only objects where the attribute named I<attr> has the value equal to
+I<value> (compared numerically using Perl's C<==> operator).
 
-C<[>I<attr> C<le> I<value>C<]>
+Example:
+
+ TableCell[length=3]
+
+selects all C<TableCell> objects that have C<length()> with the value of 3.
+
+=item * C<[>I<attr> C<eq> I<value>C<]>
+
+Filter only objects where the attribute named I<attr> has the value equal to
+I<value> (compared stringily using Perl's C<eq> operator).
+
+Example:
+
+ Table[title="TOC"]
+
+selects all C<Table> objects that have C<title()> with the value of C<"TOC">.
+
+=item * C<[>I<attr> C<!=> I<value>C<]>
+
+Filter only objects where the attribute named I<attr> has the value not equal to
+I<value> (compared numerically using Perl's C<!=> operator).
+
+Example:
+
+ TableCell[length != 3]
+
+selects all C<TableCell> objects that have C<length()> with the value not equal
+to 3.
+
+=item * C<[>I<attr> C<ne> I<value>C<]>
+
+Filter only objects where the attribute named I<attr> has the value not equal to
+I<value> (compared stringily using Perl's C<ne> operator).
+
+Example:
+
+ Table[title ne "TOC"]
+
+selects all C<Table> objects that have C<title()> with the value of C<"TOC">.
+
+=item * C<[>I<attr> C<< > >> I<value>C<]>
+
+Filter only objects where the attribute named I<attr> has the value greater than
+I<value> (compared numerically using Perl's C<< > >> operator).
+
+Example:
+
+ TableCell[length > 3]
+
+selects all C<TableCell> objects that have C<length()> with the value greater
+than 3.
+
+=item * C<[>I<attr> C<gt> I<value>C<]>
+
+Filter only objects where the attribute named I<attr> has the value greater than
+I<value> (compared stringily using Perl's C<< gt >> operator).
+
+Example:
+
+ Person[first_name gt "Albert"]
+
+selects all C<Person> objects that have C<first_name()> with the value
+asciibetically greater than C<"Albert">.
+
+=item * C<[>I<attr> C<< >= >> I<value>C<]>
+
+Filter only objects where the attribute named I<attr> has the value greater than
+or equal to I<value> (compared numerically using Perl's C<< >= >> operator).
+
+Example:
+
+ TableCell[length >= 3]
+
+selects all C<TableCell> objects that have C<length()> with the value greater
+than or equal to 3.
+
+=item * C<[>I<attr> C<ge> I<value>C<]>
+
+Filter only objects where the attribute named I<attr> has the value greater than
+or equal to I<value> (compared stringily using Perl's C<< ge >> operator).
+
+Example:
+
+ Person[first_name ge "Albert"]
+
+selects all C<Person> objects that have C<first_name()> with the value
+asciibetically greater than or equal to C<"Albert">.
+
+=item * C<[>I<attr> C<< < >> I<value>C<]>
+
+Filter only objects where the attribute named I<attr> has the value less than
+I<value> (compared numerically using Perl's C<< < >> operator).
+
+Example:
+
+ TableCell[length < 3]
+
+selects all C<TableCell> objects that have C<length()> with the value less
+than 3.
+
+=item * C<[>I<attr> C<lt> I<value>C<]>
+
+Filter only objects where the attribute named I<attr> has the value less than
+I<value> (compared stringily using Perl's C<< lt >> operator).
+
+Example:
+
+ Person[first_name lt "Albert"]
+
+selects all C<Person> objects that have C<first_name()> with the value
+asciibetically less than C<"Albert">.
+
+=item * C<[>I<attr> C<< <= >> I<value>C<]>
+
+Filter only objects where the attribute named I<attr> has the value less than
+or equal to I<value> (compared numerically using Perl's C<< <= >> operator).
+
+Example:
+
+ TableCell[length <= 3]
+
+selects all C<TableCell> objects that have C<length()> with the value less
+than or equal to 3.
+
+=item * C<[>I<attr> C<le> I<value>C<]>
+
+Filter only objects where the attribute named I<attr> has the value less than or
+equal to I<value> (compared stringily using Perl's C<< le >> operator).
+
+Example:
+
+ Person[first_name le "Albert"]
+
+selects all C<Person> objects that have C<first_name()> with the value
+asciibetically less than or equal to C<"Albert">.
+
+=item * C<[>I<attr> C<=~> I<value>C<]>
+
+Filter only objects where the attribute named I<attr> has the value matching
+regular expression I<value>. Regular expression must be delimited by C<//>.
+
+Example:
+
+ Person[first_name =~ /^Al/]
+
+selects all C<Person> objects that have C<first_name()> with the value
+matching the regex C</^Al/>.
+
+ Person[first_name =~ /^al/i]
+
+Same as previous example except the regex is case-insensitive.
+
+=item * C<[>I<attr> C<is> C<true><C<]> or C<[>I<attr> C<is> C<false><C<]>
+
+Filter only objects where the attribute named I<attr> has a true (or false)
+value. What's true or false follows Perl's semantic.
+
+Example:
+
+ DateTime[is_leap_year is true]
+
+will select all DateTime objects where its C<is_leap_year> attribute has a true
+value.
+
+ DateTime[is_leap_year is false]
+
+will select all DateTime objects where its C<is_leap_year> attribute has a false
+value.
+
+=item * C<[>I<attr> C<is> I<type><C<]>
+
+Filter only objects where the attribute named I<attr> has a value that is an
+object of type I<type>.
+
+Example:
+
+ *[date is DateTime]
+
+will select all objects that have a C<date> attribute having a value that is a
+L<DateTime> object.
+
+=item * C<[>I<attr> C<isnt> C<true><C<]> or C<[>I<attr> C<isnt> C<false><C<]>
+
+The opposite of C<is>.
+
+=back
 
 =head2 Pseudo-class
 
 A I<pseudo-class> filters objects based on some criteria, and is either:
 
-C<:first-child> to select only object that is the first child of its parent;
+=over
 
-C<:first> to select only the first object;
+=item * C<:first-child>
 
-C<:last> to select only the last object;
+Select only object that is the first child of its parent.
+
+=item * C<:nth-child(n)>
+
+=item * C<:nth-last-child(n)>
+
+=item * C<:last-child>
+
+=item * C<:only-child>
+
+=item * C<:first-of-type>
+
+=item * C<:nth-of-type(n)>
+
+=item * C<:nth-last-of-type(n)>
+
+=item * C<:last-of-type>
+
+=item * C<:first>
+
+Select only the first object.
+
+=item * C<:last>
+
+Select only the last object.
+
+=item * C<:empty>
+
+=back
 
 
 =head1 DIFFERENCES WITH CSS SELECTOR/JQUERY
 
+=head2 No equivalent of CSS class and ID selectors
+
+I.e.:
+
+ E.class
+ E#id
+
+They are not used in CSel.
+
 =head2 Syntax of attribute selector is a bit different
 
-CSel follows Perl more closely.
+CSel follows Perl more closely. There are operators not supported by CSel, but
+CSel adds more operators from Perl. In particular, the whole substring matching
+operations like C<[attr^=val]>, C<[attr$=val]>, C<[attr*=val]>, C<[attr~=val]>,
+and C<[attr|=val]> can be performed with the more flexible regex matching
+instead C<[attr =~ /re/]>.
 
 =head2 Attribute selector or pseudo-class without type/universal selector is not allowed
 
@@ -234,9 +471,21 @@ which is the same as:
 
 In CSel you have to explicitly says the latter.
 
+=head2 Different pseudo-classes supported
+
+Some CSS pseudo-classes only make sense for a DOM or a visual browser, e.g.
+C<:link>, C<:visited>, C<:hover>.
+
+=head2 There is no concept of CSS namespaces
+
+But Perl packages are already hierarchical.
+
 
 =head1 FUNCTIONS
 
 The functions are not exported by default but they are exportable.
 
 =head2 parse_csel_expr($expr) => hash|undef
+
+Parse an expression. On success, will return a hash containing parsed
+information. On failure, will return undef.

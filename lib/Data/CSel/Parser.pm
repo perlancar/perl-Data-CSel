@@ -107,7 +107,7 @@ our $re =
                   })
                   (?&SIMPLE_SELECTOR)
                   (?:
-                      (\s*>\s*|\s*\+\s*|\s+)
+                      (\s*>\s*|\s*\+\s*|\s*~\s*|\s+)
                       (?{
                           my $sel = $^R->{selectors}[-1];
                           my $comb = $^N; $comb =~ s/\s+//g;
@@ -157,7 +157,12 @@ The following is a description of the CSel query expression.
 An I<expression> is chain of one or more selectors separated by commas.
 
 A I<selector> is a chain of one or more simple selectors separated by
-combinators. I<Combinators> are: white space, C<< > >>, and C<+>.
+combinators. I<Combinators> are: white space (descendant combinator), C<< > >>
+(child combinator), C<~> (general sibling combinator), or C<+> (adjacent sibling
+combinator). C<E F>, or two elements combined using descendant combinator means
+F element descendant of an E element. C<< E > F >> means F element child of E
+element. C<E ~ F> means F element preceded by an E element. C<E + F> means F
+element immediately preceded by an E element.
 
 A I<simple selector> is either a type selector or universal selector followed
 immediately by zero or more attribute selectors or pseudo-classes, in any order.

@@ -19,6 +19,8 @@ sub select_nodes_with_csel {
 
     my $pexpr =  Data::CSel::Parser::parse_csel_expr($expr);
 
+    # XXX wrap tree using wrapper object if not blessed
+
     my $code_sel = sub {
         my ($res, $tree) = @_;
     };

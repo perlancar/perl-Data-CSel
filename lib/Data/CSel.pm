@@ -121,6 +121,23 @@ our $RE =
                           $^R->[0][1]{pseudoclass}  = $^R->[1][0];
                           $^R->[0];
                       })
+                      (?:
+                          \(\s*
+                          (?&LITERAL)
+                          (?{
+                              push @{ $^R->[0][1]{args} }, $^R->[1];
+                              $^R->[0];
+                          })
+                          (?:
+                              \s*,\s*
+                              (?&LITERAL)
+                              (?{
+                                  push @{ $^R->[0][1]{args} }, $^R->[1];
+                                  $^R->[0];
+                              })
+                          )*
+                          \s*\)
+                      )?
                   )
               )
 
@@ -275,7 +292,7 @@ sub csel {
 
  use Data::CSel qw(csel);
 
- my @cells = csel("Table[name=~/data/i] TCell[value isnt empty]:first", $tree);
+ my @cells = csel("Table[name=~/data/i] TCell[value isnt '']:first", $tree);
 
  # ditto, but wrap result using a Data::CSel::Selection
  my $res = csel("...", $data, {wrap=>1});
@@ -593,37 +610,62 @@ attribute having a value that is not a DateTime object.
 
 =head2 Pseudo-class
 
-A I<pseudo-class> filters objects based on some criteria, and is either:
+A I<pseudo-class> filters objects based on some criteria, in the form of:
+
+ :NAME
+ :NAME(ARG, ...)
+
+Supported pseudo-classes include:
 
 =over
+
+=item * C<:first>
+
+Select only the first object from the result set.
+
+Example:
+
+ Person[name =~ /^a/i]:first
+
+selects the first person whose name starts with the letter C<A>.
+
+=item * C<:last>
+
+Select only the last item from the result set.
+
+Example:
+
+ Person[name =~ /^a/i]:last
+
+selects the last person whose name starts with the letter C<A>.
 
 =item * C<:first-child>
 
 Select only object that is the first child of its parent.
 
+=item * C<:last-child>
+
+Select only object that is the last child of its parent.
+
 =item * C<:nth-child(n)>
+
+Select only object that is the I<n>th child of its parent.
 
 =item * C<:nth-last-child(n)>
 
-=item * C<:last-child>
+Select only object that is the I<n>th last child of its parent.
 
 =item * C<:only-child>
 
+Select only object that is the only child of its parent.
+
 =item * C<:first-of-type>
+
+=item * C<:last-of-type>
 
 =item * C<:nth-of-type(n)>
 
 =item * C<:nth-last-of-type(n)>
-
-=item * C<:last-of-type>
-
-=item * C<:first>
-
-Select only the first object.
-
-=item * C<:last>
-
-Select only the last object.
 
 =item * C<:empty>
 

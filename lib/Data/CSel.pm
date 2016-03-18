@@ -8,56 +8,205 @@ use strict;
 use warnings;
 
 use Exporter qw(import);
-our @EXPORT_OK = qw(csel);
+our @EXPORT_OK = qw(
+                       csel
+                       parse_csel
+               );
+
+our $re =
+    qr{
+          (?&SELECTORS) (?{ $_ = $^R })
+          (?(DEFINE)
+              (?<LITERAL_NUMBER>
+                  (
+                      -?
+                      (?: 0 | [1-9]\d* )
+                      (?: \. \d+ )?
+                      (?: [eE] [-+]? \d+ )?
+                  )
+                  (?{ $m_val = 0+$^N; $^R })
+              )
+
+              (?<LITERAL>
+                  (?&LITERAL_NUMBER)
+              )
+
+              (?<ATTR_NAME>
+                  [A-Za-z_][A-Za-z0-9_]*
+              )
+
+              (?<ATTR_SELECTOR>
+                  \[((?&ATTR_NAME))\]
+                  (?{
+                      my $simpsel = $^R->{selectors}[-1][-1];
+                      push @{ $simpsel->{filters} }, {type=>'attr_selector', attr=>$^N};
+                      $^R;
+                  })
+              |
+                  \[!((?&ATTR_NAME))\]
+                  (?{
+                      my $simpsel = $^R->{selectors}[-1][-1];
+                      push @{ $simpsel->{filters} }, {type=>'attr_selector', attr=>$^N, not=>1};
+                      $^R;
+                  })
+              |
+                  \[((?&ATTR_NAME)) (?{ $m_attr = $^N; $^R })
+                  (
+                      \s*(?:==?|!=|>=?|<=?)\s* |
+                      \s+(?:eq|ne|lt|gt|le|ge)\s+
+                  )
+                  (?{ $m_op = $^N; $m_op =~ s/\s+//g; $^R })
+                  ((?&LITERAL))
+                  \]
+                  (?{
+                      my $simpsel = $^R->{selectors}[-1][-1];
+                      push @{ $simpsel->{filters} }, {type=>'attr_selector', attr=>$m_attr, op=>$m_op, value=>$m_val };
+                      $^R;
+                  })
+              )
+
+              (?<PSEUDOCLASS_NAME>
+                  [A-Za-z_][A-Za-z0-9_]*(?:-[A-Za-z0-9_]+)*
+              )
+
+              (?<PSEUDOCLASS>
+                  :((?&PSEUDOCLASS_NAME))
+                  (?{
+                      my $simpsel = $^R->{selectors}[-1][-1];
+                      push @{ $simpsel->{filters} }, {type=>'pseudoclass', pseudoclass=>$^N};
+                      $^R;
+                  })
+              )
+
+              (?<FILTER>
+                  (?&ATTR_SELECTOR)|(?&PSEUDOCLASS)
+              )
+
+              (?<FILTERS>
+                  (?:
+                      (?&FILTER) (?: \s* (?&FILTER) )*
+                  )?
+              )
+
+              (?<SIMPLE_SELECTOR>
+                 ([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z0-9_]+)*|\*)
+                 (?{
+                     my $sel = $^R->{selectors}[-1];
+                     push @{$sel}, {};
+                     $sel->[-1]{type} = $^N;
+                     $^R;
+                 })
+                 (?&FILTERS)
+              )
+
+              (?<SELECTOR>
+                  (?{
+                      push @{ $^R->{selectors} }, [];
+                      $^R;
+                  })
+                  (?&SIMPLE_SELECTOR)
+                  (?:
+                      (\s*>\s*|\s*\+\s*|\s*~\s*|\s+)
+                      (?{
+                          my $sel = $^R->{selectors}[-1];
+                          my $comb = $^N; $comb =~ s/\s+//g;
+                          push @$sel, {combinator=>$comb};
+                          $^R;
+                      })
+
+                      (?&SIMPLE_SELECTOR)
+                  )?
+              )
+
+              (?<SELECTORS>
+                  \s*
+                  (?{ {selectors=>[] } })
+                  (?&SELECTOR)
+                  (?:
+                      \s*,\s*
+                      (?&SELECTOR)
+                  )?
+                  \s*
+              )
+          ) # DEFINE
+  }x;
+
+sub parse_csel_expr {
+    local $_ = shift;
+    local $^R;
+    eval { m{\A$re\z}; } and return $_;
+    die $@ if $@;
+    return undef;
+}
 
 sub csel {
-    require Data::CSel::Selector;
     my ($expr, $tree, $opts) = @_;
-    Data::CSel::Selector::select_nodes_with_csel($expr, $tree, $opts);
+    $opts //= {};
+
+    my $pexpr =  parse_csel($expr);
+
+    my $code_sel = sub {
+        my ($res, $tree) = @_;
+    };
+
+    my @res;
+    for my $sel (@{$pexpr}) {
+        # XXX
+    }
+
+    if ($opts->wrap) {
+        require Data::CSel::Selection;
+        return Data::CSel::Selection->new(@res);
+    } else {
+        return @res;
+    }
 }
 
 1;
-# ABSTRACT: Select nodes of tree object/data structure using CSS Selector-like syntax
+# ABSTRACT: Select nodes of tree object using CSS Selector-like syntax
 
 =head1 SYNOPSIS
 
  use Data::CSel qw(csel);
 
- # to select from data structure
- my @records  = csel("Hash:has_key('name'):has_key('age')", $data);
-
- # to select nodes from tree object
  my @cells = csel("Table[name=~/data/i] TCell[value isnt empty]:first", $tree);
 
  # ditto, but wrap result using a Data::CSel::Selection
  my $res = csel("...", $data, {wrap=>1});
 
- # delete all matching nodes (works even though there are zero nodes)
- $res->delete;
+ # call method 'foo' of each node object (works even when there are zero nodes
+ # in the selection object, or when some nodes do not support the 'foo' method
+ $res->foo;
 
 
 =head1 DESCRIPTION
 
 This module lets you use a query language (hereby named CSel) that is similar to
-CSS Selector to select nodes of tree object/data structure.
+CSS Selector to select nodes of tree object.
 
 
 =head1 EXPRESSION SYNTAX
 
-The following is description of the CSel query expression.
+The following is description of the CSel query expression. It is modeled after
+the CSS Selector syntax with some modification (see L</"Differences with CSS
+selector">).
 
-An I<expression> is chain of one or more selectors separated by commas.
+An I<expression> is a chain of one or more selectors separated by commas.
 
 A I<selector> is a chain of one or more simple selectors separated by
-combinators. I<Combinators> are: white space (descendant combinator), C<< > >>
-(child combinator), C<~> (general sibling combinator), or C<+> (adjacent sibling
-combinator). C<E F>, or two elements combined using descendant combinator means
+combinators.
+
+A I<combinator> is either: whitespace (descendant combinator), C<< > >> (child
+combinator), C<~> (general sibling combinator), or C<+> (adjacent sibling
+combinator). C<E F>, or two elements combined using descendant combinator, means
 F element descendant of an E element. C<< E > F >> means F element child of E
 element. C<E ~ F> means F element preceded by an E element. C<E + F> means F
 element immediately preceded by an E element.
 
 A I<simple selector> is either a type selector or universal selector followed
 immediately by zero or more attribute selectors or pseudo-classes, in any order.
+Type or universal selector is optional if there are at least one attribute
+selector or pseudo-class.
 
 =head2 Type selector
 
@@ -81,35 +230,76 @@ will match any object.
 
 =head2 Attribute selector
 
-An I<attribute selector> filters objects based on their attributes, and is
-either:
+An I<attribute selector> filters objects based on the value of their attributes.
+The syntax is:
+
+ [ATTR]
+ [ATTR OP LITERAL]
+
+C<[ATTR]> means to only select objects that have an attribute named C<ATTR>, for
+example:
+
+ Any[length]
+
+means to select object of type (C<isa()>) C<Any> that responds to (C<can()>)
+C<length()>.
+
+Note: to select objects that do not have a specified attribute, you can use the
+C<:not> pseudo-class (see L</"Pseudo-class">), for example:
+
+ Any:not([length])
+
+C<[ATTR]> means to only select objects that have an attribute named C<ATTR> that
+has value that matches the expression specified by operator C<OP> and operand
+C<LITERAL>.
+
+=head3 Literal
+
+Literals can either be a number, e.g.:
+
+ 1
+ -2.3
+ 4.5e-6
+
+or boolean literals:
+
+ true
+ false
+
+or null (undef) literal:
+
+ null
+
+or a single-quoted string (only recognizes the escape sequences C<\\> and
+C<\'>):
+
+ 'this is a string'
+ 'this isn\'t hard'
+
+or a double-quoted string (currently recognizes the escape sequences C<\\>,
+C<\">, C<\'>, C<\$> [literal $], C<\t> [tab character], C<\n> [newline], C<\r>
+[linefeed], C<\f> [formfeed], C<\b> [backspace], C<\a> [bell], C<\e> [escape],
+C<\0> [null], octal escape e.g. C<\033>, hexadecimal escape e.g. C<\x1b>):
+
+ "This is a string"
+ "This isn't hard"
+ "Line 1\nLine 2"
+
+or a regex string (must be delimited by C</> ... C</>, can be followed by zero
+of more regex modifier characters m, s, i):
+
+ //
+ /ab(c|d)/i
+
+=head3 Operators
+
+The following are supported operators:
 
 =over
 
-=item * C<[>I<attr>C<]>
+=item * C<=> (or C<==>)
 
-Filter only objects that C<can()> I<attr>.
-
-Example:
-
- *[quack]
-
-selects any object that can C<quack()>.
-
-=item * C<[!>I<attr>C<]>
-
-Filter only objects that cannot I<attr>.
-
-Example:
-
- *[!quack]
-
-selects any object that cannot C<quack()>.
-
-=item * C<[>I<attr> C<=> I<value>C<]> or C<[>I<attr> C<==> I<value>C<]>
-
-Filter only objects where the attribute named I<attr> has the value equal to
-I<value> (compared numerically using Perl's C<==> operator).
+Numerical equality using Perl's C<==> operator.
 
 Example:
 
@@ -117,21 +307,19 @@ Example:
 
 selects all C<TableCell> objects that have C<length()> with the value of 3.
 
-=item * C<[>I<attr> C<eq> I<value>C<]>
+=item * C<eq>
 
-Filter only objects where the attribute named I<attr> has the value equal to
-I<value> (compared stringily using Perl's C<eq> operator).
+String equality using Perl's C<eq> operator.
 
 Example:
 
- Table[title="TOC"]
+ Table[title eq "TOC"]
 
 selects all C<Table> objects that have C<title()> with the value of C<"TOC">.
 
-=item * C<[>I<attr> C<!=> I<value>C<]>
+=item * C<!=>
 
-Filter only objects where the attribute named I<attr> has the value not equal to
-I<value> (compared numerically using Perl's C<!=> operator).
+Numerical inequality using Perl's C<!=> operator.
 
 Example:
 
@@ -140,21 +328,20 @@ Example:
 selects all C<TableCell> objects that have C<length()> with the value not equal
 to 3.
 
-=item * C<[>I<attr> C<ne> I<value>C<]>
+=item * C<ne>
 
-Filter only objects where the attribute named I<attr> has the value not equal to
-I<value> (compared stringily using Perl's C<ne> operator).
+String inequality using Perl's C<ne> operator.
 
 Example:
 
  Table[title ne "TOC"]
 
-selects all C<Table> objects that have C<title()> with the value of C<"TOC">.
+selects all C<Table> objects that have C<title()> with the value not equal to
+C<"TOC">.
 
-=item * C<[>I<attr> C<< > >> I<value>C<]>
+=item * C<< > >>
 
-Filter only objects where the attribute named I<attr> has the value greater than
-I<value> (compared numerically using Perl's C<< > >> operator).
+Numerical greater-than using Perl's C<< > >> operator.
 
 Example:
 
@@ -163,10 +350,9 @@ Example:
 selects all C<TableCell> objects that have C<length()> with the value greater
 than 3.
 
-=item * C<[>I<attr> C<gt> I<value>C<]>
+=item * C<gt>
 
-Filter only objects where the attribute named I<attr> has the value greater than
-I<value> (compared stringily using Perl's C<< gt >> operator).
+String greater-than using Perl's C<gt> operator.
 
 Example:
 
@@ -175,10 +361,9 @@ Example:
 selects all C<Person> objects that have C<first_name()> with the value
 asciibetically greater than C<"Albert">.
 
-=item * C<[>I<attr> C<< >= >> I<value>C<]>
+=item * C<< >= >>
 
-Filter only objects where the attribute named I<attr> has the value greater than
-or equal to I<value> (compared numerically using Perl's C<< >= >> operator).
+Numerical greater-than-or-equal-to using Perl's C<< >= >> operator.
 
 Example:
 
@@ -187,10 +372,9 @@ Example:
 selects all C<TableCell> objects that have C<length()> with the value greater
 than or equal to 3.
 
-=item * C<[>I<attr> C<ge> I<value>C<]>
+=item * C<ge>
 
-Filter only objects where the attribute named I<attr> has the value greater than
-or equal to I<value> (compared stringily using Perl's C<< ge >> operator).
+String greater-than-or-equal-to using Perl's C<< ge >> operator.
 
 Example:
 
@@ -199,10 +383,9 @@ Example:
 selects all C<Person> objects that have C<first_name()> with the value
 asciibetically greater than or equal to C<"Albert">.
 
-=item * C<[>I<attr> C<< < >> I<value>C<]>
+=item * C<< < >>
 
-Filter only objects where the attribute named I<attr> has the value less than
-I<value> (compared numerically using Perl's C<< < >> operator).
+Numerical less-than using Perl's C<< < >> operator.
 
 Example:
 
@@ -211,10 +394,9 @@ Example:
 selects all C<TableCell> objects that have C<length()> with the value less
 than 3.
 
-=item * C<[>I<attr> C<lt> I<value>C<]>
+=item * C<lt>
 
-Filter only objects where the attribute named I<attr> has the value less than
-I<value> (compared stringily using Perl's C<< lt >> operator).
+String less-than using Perl's C<< lt >> operator.
 
 Example:
 
@@ -223,10 +405,9 @@ Example:
 selects all C<Person> objects that have C<first_name()> with the value
 asciibetically less than C<"Albert">.
 
-=item * C<[>I<attr> C<< <= >> I<value>C<]>
+=item * C<< <= >>
 
-Filter only objects where the attribute named I<attr> has the value less than
-or equal to I<value> (compared numerically using Perl's C<< <= >> operator).
+Numerical less-than-or-equal-to using Perl's C<< <= >> operator.
 
 Example:
 
@@ -235,10 +416,9 @@ Example:
 selects all C<TableCell> objects that have C<length()> with the value less
 than or equal to 3.
 
-=item * C<[>I<attr> C<le> I<value>C<]>
+=item * C<le>
 
-Filter only objects where the attribute named I<attr> has the value less than or
-equal to I<value> (compared stringily using Perl's C<< le >> operator).
+String less-than-or-equal-to using Perl's C<< le >> operator.
 
 Example:
 
@@ -247,10 +427,11 @@ Example:
 selects all C<Person> objects that have C<first_name()> with the value
 asciibetically less than or equal to C<"Albert">.
 
-=item * C<[>I<attr> C<=~> I<value>C<]>
+=item * C<=~> and C<!~>
 
 Filter only objects where the attribute named I<attr> has the value matching
-regular expression I<value>. Regular expression must be delimited by C<//>.
+regular expression I<value>. Operand should be a regex literal. Regex literal
+must be delimited by C<//>.
 
 Example:
 
@@ -263,10 +444,12 @@ matching the regex C</^Al/>.
 
 Same as previous example except the regex is case-insensitive.
 
-=item * C<[>I<attr> C<is> C<true><C<]> or C<[>I<attr> C<is> C<false><C<]>
+C<!~> is the reverse of C<=~>, just like in Perl. It checks whether I<attr> has
+value that does not match regular expression.
 
-Filter only objects where the attribute named I<attr> has a true (or false)
-value. What's true or false follows Perl's semantic.
+=item * C<is> and C<isnt>
+
+Testing truth value or definedness. Value can be null or boolean literal.
 
 Example:
 
@@ -280,25 +463,20 @@ value.
 will select all DateTime objects where its C<is_leap_year> attribute has a false
 value.
 
-=item * C<[>I<attr> C<is> I<type><C<]>
+ Person[age isnt null]
 
-Filter only objects where the attribute named I<attr> has a value that is an
-object of type I<type>.
+will select all Person objects where age is defined.
+
+=item * C<isa>
+
+Checking C<isa()> relationship.
 
 Example:
 
- *[date is DateTime]
+ [date isa "DateTime"]
 
 will select all objects that have a C<date> attribute having a value that is a
 L<DateTime> object.
-
-=item * C<[>I<attr> C<isnt> C<true><C<]> or C<[>I<attr> C<isnt> C<false><C<]>
-
-The opposite of C<is true> or C<is false>, respectively.
-
-=item * C<[>I<attr> C<isnt> I<type><C<]>
-
-The opposite of C<is> I<type>..
 
 =back
 
@@ -338,12 +516,21 @@ Select only the last object.
 
 =item * C<:empty>
 
+=item * C<:not(s)>
+
+=item * C<:has(s)>
+
 =back
 
 
-=head2 Differences with CSS selector/jQuery
+=head2 Differences with CSS selector
 
-=head3 No equivalent of CSS class and ID selectors
+=head3 Type selector can contain double colon (C<::>)
+
+Since Perl package names are separated by C<::>, CSel allows it in type
+selector.
+
+=head3 No equivalent for CSS class and ID selectors
 
 I.e.:
 
@@ -354,35 +541,59 @@ They are not used in CSel.
 
 =head3 Syntax of attribute selector is a bit different
 
-CSel follows Perl more closely. There are operators not supported by CSel, but
-CSel adds more operators from Perl. In particular, the whole substring matching
-operations like C<[attr^=val]>, C<[attr$=val]>, C<[attr*=val]>, C<[attr~=val]>,
-and C<[attr|=val]> can be performed with the more flexible regex matching
-instead C<[attr =~ /re/]>.
-
-=head3 Attribute selector or pseudo-class without type/universal selector is not allowed
-
-jQuery allows this:
-
- [disabled]
-
-which is the same as:
-
- *[disabled]
-
-In CSel you have to explicitly says the latter.
+In CSel, the syntax of attribute selector is made simpler and more regular.
+There are operators not supported by CSel, but CSel adds more operators from
+Perl. In particular, the whole substring matching operations like
+C<[attr^=val]>, C<[attr$=val]>, C<[attr*=val]>, C<[attr~=val]>, and
+C<[attr|=val]> are replaced with the more flexible regex matching instead
+C<[attr =~ /re/]>.
 
 =head3 Different pseudo-classes supported
 
 Some CSS pseudo-classes only make sense for a DOM or a visual browser, e.g.
-C<:link>, C<:visited>, C<:hover>.
+C<:link>, C<:visited>, C<:hover>, so they are not supported.
+
+=head3 :has(p) and :not(p) needs quoted value
+
+In CSel, C<p> is a regular string literal and must be quoted.
 
 =head3 There is no concept of CSS namespaces
 
-But Perl packages are already hierarchical.
+But Perl package names are already hierarchical.
 
 
-=head1 METHODS
+=head1 FUNCTIONS
+
+=head2 csel($expr, $tree [ , \%opts ]) => list|selection
+
+Select nodes from a tree object C<$tree> using CSel expression C<$expr>. See
+L<Data::CSel> for the CSel syntax. Will return a list of mattching node objects
+(unless when C<wrap> option is true, in which case will return a
+L<Data::CSel::Selection> object instead). Will die on errors (e.g. syntax error
+in expression, object not having the requied method, etc).
+
+A tree object is a node object, while node object is any regular Perl object
+satisfying the following criteria: 1) it supports a C<parent> method which
+should return a single parent node object, or undef if object is the root node);
+2) it supports a C<children> method which should return a list (or an arrayref)
+of node objects or an empty list if object is a leaf node.
+
+Known options:
+
+=over
+
+=item * wrap => bool
+
+If set to true, instead of returning a list of matching nodes, the function will
+return a L<Data::CSel::Selection> object instead (which wraps the result, for
+convenience). See the selection object's documentation for more details.
+
+=back
+
+=head2 parse_csel($expr) => hash|undef
+
+Parse an expression. On success, will return a hash containing parsed
+information. On failure, will return undef.
 
 
 =head1 SEE ALSO

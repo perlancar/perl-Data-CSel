@@ -15,8 +15,7 @@ our @EXPORT_OK = qw(
 
 our $RE =
     qr{
-          #(?&SELECTORS) (?{ $_ = $^R->[1] })
-          (?&SELECTOR) (?{ $_ = $^R->[1] })
+          (?&SELECTORS) (?{ $_ = $^R->[1] })
 
           (?(DEFINE)
               (?<SELECTORS>
@@ -206,6 +205,7 @@ our $RE =
                       '
                       (?:
                           [^\\']+
+                      |
                           \\ .
                       )*
                       '
@@ -240,7 +240,7 @@ our $RE =
 sub parse_csel {
     local $_ = shift;
     local $^R;
-    eval { m{\A$RE\z}; } and return $_;
+    eval { m{\A\s*$RE\s*\z}; } and return $_;
     die $@ if $@;
     return undef;
 }

@@ -13,10 +13,167 @@ our @EXPORT_OK = qw(
                        parse_csel
                );
 
-our $re =
+our $RE =
     qr{
-          (?&SELECTORS) (?{ $_ = $^R })
+          #(?&SELECTORS) (?{ $_ = $^R->[1] })
+          (?&SELECTOR) (?{ $_ = $^R->[1] })
+
           (?(DEFINE)
+              (?<SELECTORS>
+                  (?{ [$^R, []] })
+                  (?&SELECTOR) # [[$^R, []], $selector]
+                  (?{ [$^R->[0][0], [$^R->[1]]] })
+                  (?:
+                      \s*,\s*
+                      (?&SELECTOR)
+                      (?{
+                          push @{$^R->[0][1]}, $^R->[1];
+                          $^R->[0];
+                      })
+                  )*
+                  \s*
+              )
+
+              (?<SELECTOR>
+                  (?{ [$^R, []] })
+                  (?&SIMPLE_SELECTOR) # [[$^R, []], $simple_selector]
+                  (?{ [$^R->[0][0], [$^R->[1]]] })
+                  (?:
+                      (\s*>\s*|\s*\+\s*|\s*~\s*|\s+)
+                      (?{
+                          my $comb = $^N;
+                          $comb =~ s/^\s+//; $comb =~ s/\s+$//;
+                          $comb = " " if $comb eq '';
+                          push @{$^R->[1]}, {combinator=>$comb};
+                          $^R;
+                      })
+
+                      (?&SIMPLE_SELECTOR)
+                      (?{
+                          push @{$^R->[0][1]}, $^R->[1];
+                          $^R->[0];
+                      })
+                  )*
+              )
+
+              (?<SIMPLE_SELECTOR>
+                  (?:
+                      (?:
+                          # type selector + optional filters
+                          ((?&TYPE_NAME))
+                          (?{ [$^R, {type=>$^N, filters=>[]}] })
+                          (?:
+                              (?&FILTER) # [[$^R, $simple_selector], $filter]
+                              (?{
+                                  push @{ $^R->[0][1]{filters} }, $^R->[1];
+                                  $^R->[0];
+                              })
+                              (?:
+                                  \s*
+                                  (?&FILTER)
+                                  (?{
+                                      push @{ $^R->[0][1]{filters} }, $^R->[1];
+                                      $^R->[0];
+                                  })
+                              )*
+                          )?
+                      )
+                  |
+                      (?:
+                          # optional type selector + one or more filters
+                          ((?&TYPE_NAME))?
+                          (?{ [$^R, {type=>$^N // '*', filters=>[]}] })
+                          (?&FILTER) # [[$^R, $simple_selector], $filter]
+                          (?{
+                              push @{ $^R->[0][1]{filters} }, $^R->[1];
+                              $^R->[0];
+                          })
+                          (?:
+                              \s*
+                              (?&FILTER)
+                              (?{
+                                  push @{ $^R->[0][1]{filters} }, $^R->[1];
+                                  $^R->[0];
+                              })
+                          )*
+                      )
+                  )
+              )
+
+              (?<TYPE_NAME>
+                  ([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z0-9_]+)*|\*)
+              )
+
+              (?<FILTER>
+                  (?{ [$^R, {}] })
+                  (
+                      (?&ATTR_SELECTOR) # [[$^R, {}], [$attr, $op, $val]]
+                      (?{
+                          $^R->[0][1]{type}  = 'attr_selector';
+                          $^R->[0][1]{attr}  = $^R->[1][0];
+                          $^R->[0][1]{op}    = $^R->[1][1];
+                          $^R->[0][1]{value} = $^R->[1][2];
+                          $^R->[0];
+                      })
+                  |
+                      (?&PSEUDOCLASS) # [[$^R, {}], [$pseudoclass]]
+                      (?{
+                          $^R->[0][1]{type}         = 'pseudoclass';
+                          $^R->[0][1]{pseudoclass}  = $^R->[1][0];
+                          $^R->[0];
+                      })
+                  )
+              )
+
+              (?<ATTR_SELECTOR>
+                  \[\s*((?&ATTR_NAME))\s*\]
+                  (?{ [$^R, [$^N]] })
+              |
+                  \[\s*
+                  ((?&ATTR_NAME))
+                  (?{ [$^R, [$^N]] })
+
+                  (
+                      \s*(?:=~|!~)\s* |
+                      \s*(?:!=|>=?|<=?|==?)\s* |
+                      \s+(?:eq|ne|lt|gt|le|ge)\s+ |
+                      \s+(?:isnt|is|isnta|isa)\s+
+                  )
+                  (?{
+                      my $op = $^N;
+                      $op =~ s/^\s+//; $op =~ s/\s+$//;
+                      push @{$^R->[1]}, $op;
+                      $^R;
+                  })
+
+                  ((?&LITERAL)) # [[$^R, [$attr, $op]], $literal]
+                  (?{
+                      push @{ $^R->[0][1] }, $^R->[1];
+                      $^R->[0];
+                  })
+                  \s*\]
+              )
+
+              (?<ATTR_NAME>
+                  [A-Za-z_][A-Za-z0-9_]*
+              )
+
+              (?<LITERAL>
+                  (?&LITERAL_NUMBER)
+              |
+                  (?&LITERAL_STRING_DQUOTE)
+              |
+                  (?&LITERAL_STRING_SQUOTE)
+              |
+                  (?&LITERAL_REGEX)
+              |
+                  true (?{ [$^R, 1] })
+              |
+                  false (?{ [$^R, 0] })
+              |
+                  null (?{ [$^R, undef] })
+              )
+
               (?<LITERAL_NUMBER>
                   (
                       -?
@@ -24,45 +181,49 @@ our $re =
                       (?: \. \d+ )?
                       (?: [eE] [-+]? \d+ )?
                   )
-                  (?{ $m_val = 0+$^N; $^R })
+                  (?{ [$^R, 0+$^N] })
               )
 
-              (?<LITERAL>
-                  (?&LITERAL_NUMBER)
-              )
-
-              (?<ATTR_NAME>
-                  [A-Za-z_][A-Za-z0-9_]*
-              )
-
-              (?<ATTR_SELECTOR>
-                  \[((?&ATTR_NAME))\]
-                  (?{
-                      my $simpsel = $^R->{selectors}[-1][-1];
-                      push @{ $simpsel->{filters} }, {type=>'attr_selector', attr=>$^N};
-                      $^R;
-                  })
-              |
-                  \[!((?&ATTR_NAME))\]
-                  (?{
-                      my $simpsel = $^R->{selectors}[-1][-1];
-                      push @{ $simpsel->{filters} }, {type=>'attr_selector', attr=>$^N, not=>1};
-                      $^R;
-                  })
-              |
-                  \[((?&ATTR_NAME)) (?{ $m_attr = $^N; $^R })
+              (?<LITERAL_STRING_DQUOTE>
                   (
-                      \s*(?:==?|!=|>=?|<=?)\s* |
-                      \s+(?:eq|ne|lt|gt|le|ge)\s+
+                      "
+                      (?:
+                          [^\\"]+
+                      |
+                          \\ [0-7]{1,3}
+                      |
+                          \\ x [0-9A-Fa-f]{1,2}
+                      |
+                          \\ ["\\'tnrfbae]
+                      )*
+                      "
                   )
-                  (?{ $m_op = $^N; $m_op =~ s/\s+//g; $^R })
-                  ((?&LITERAL))
-                  \]
-                  (?{
-                      my $simpsel = $^R->{selectors}[-1][-1];
-                      push @{ $simpsel->{filters} }, {type=>'attr_selector', attr=>$m_attr, op=>$m_op, value=>$m_val };
-                      $^R;
-                  })
+                  (?{ [$^R, eval $^N] })
+              )
+
+              (?<LITERAL_STRING_SQUOTE>
+                  (
+                      '
+                      (?:
+                          [^\\']+
+                          \\ .
+                      )*
+                      '
+                  )
+                  (?{ [$^R, eval $^N] })
+              )
+
+              (?<LITERAL_REGEX>
+                  (
+                      /
+                      (?:
+                          [^\\]+
+                          \\ .
+                      )*
+                      /
+                      [ims]*
+                  )
+                  (?{ my $re = eval "qr$^N"; die if $@; [$^R, $re] })
               )
 
               (?<PSEUDOCLASS_NAME>
@@ -71,70 +232,15 @@ our $re =
 
               (?<PSEUDOCLASS>
                   :((?&PSEUDOCLASS_NAME))
-                  (?{
-                      my $simpsel = $^R->{selectors}[-1][-1];
-                      push @{ $simpsel->{filters} }, {type=>'pseudoclass', pseudoclass=>$^N};
-                      $^R;
-                  })
-              )
-
-              (?<FILTER>
-                  (?&ATTR_SELECTOR)|(?&PSEUDOCLASS)
-              )
-
-              (?<FILTERS>
-                  (?:
-                      (?&FILTER) (?: \s* (?&FILTER) )*
-                  )?
-              )
-
-              (?<SIMPLE_SELECTOR>
-                 ([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z0-9_]+)*|\*)
-                 (?{
-                     my $sel = $^R->{selectors}[-1];
-                     push @{$sel}, {};
-                     $sel->[-1]{type} = $^N;
-                     $^R;
-                 })
-                 (?&FILTERS)
-              )
-
-              (?<SELECTOR>
-                  (?{
-                      push @{ $^R->{selectors} }, [];
-                      $^R;
-                  })
-                  (?&SIMPLE_SELECTOR)
-                  (?:
-                      (\s*>\s*|\s*\+\s*|\s*~\s*|\s+)
-                      (?{
-                          my $sel = $^R->{selectors}[-1];
-                          my $comb = $^N; $comb =~ s/\s+//g;
-                          push @$sel, {combinator=>$comb};
-                          $^R;
-                      })
-
-                      (?&SIMPLE_SELECTOR)
-                  )?
-              )
-
-              (?<SELECTORS>
-                  \s*
-                  (?{ {selectors=>[] } })
-                  (?&SELECTOR)
-                  (?:
-                      \s*,\s*
-                      (?&SELECTOR)
-                  )?
-                  \s*
+                  (?{ [$^R, [$^N]] })
               )
           ) # DEFINE
   }x;
 
-sub parse_csel_expr {
+sub parse_csel {
     local $_ = shift;
     local $^R;
-    eval { m{\A$re\z}; } and return $_;
+    eval { m{\A$RE\z}; } and return $_;
     die $@ if $@;
     return undef;
 }
@@ -444,7 +550,7 @@ matching the regex C</^Al/>.
 
 Same as previous example except the regex is case-insensitive.
 
-C<!~> is the reverse of C<=~>, just like in Perl. It checks whether I<attr> has
+C<!~> is the opposite of C<=~>, just like in Perl. It checks whether I<attr> has
 value that does not match regular expression.
 
 =item * C<is> and C<isnt>
@@ -467,7 +573,7 @@ value.
 
 will select all Person objects where age is defined.
 
-=item * C<isa>
+=item * C<isa> and C<isnta>
 
 Checking C<isa()> relationship.
 
@@ -477,6 +583,11 @@ Example:
 
 will select all objects that have a C<date> attribute having a value that is a
 L<DateTime> object.
+
+ [date isnta "DateTime"]
+
+This is the opposite of C<isa>, will select all objects that have a C<date>
+attribute having a value that is not a DateTime object.
 
 =back
 

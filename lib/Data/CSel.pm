@@ -60,7 +60,7 @@ our $RE =
                       (?:
                           # type selector + optional filters
                           ((?&TYPE_NAME))
-                          (?{ [$^R, {type=>$^N, filters=>[]}] })
+                          (?{ [$^R, {type=>$^N}] })
                           (?:
                               (?&FILTER) # [[$^R, $simple_selector], $filter]
                               (?{
@@ -110,8 +110,8 @@ our $RE =
                       (?{
                           $^R->[0][1]{type}  = 'attr_selector';
                           $^R->[0][1]{attr}  = $^R->[1][0];
-                          $^R->[0][1]{op}    = $^R->[1][1];
-                          $^R->[0][1]{value} = $^R->[1][2];
+                          $^R->[0][1]{op}    = $^R->[1][1] if @{$^R->[1]} > 1;
+                          $^R->[0][1]{value} = $^R->[1][2] if @{$^R->[1]} > 2;
                           $^R->[0];
                       })
                   |
@@ -262,31 +262,129 @@ sub parse_csel {
     return undef;
 }
 
-sub csel {
-    my ($expr, $tree, $opts) = @_;
-    $opts //= {};
+sub _simpsel {
+    my ($opts, $simpsel, $is_recursive, $res_set, @nodes) = @_;
 
-    my $pexpr =  parse_csel($expr);
+    for my $node (@nodes) {
+      SELECT:
+        {
+            # type selector
+            last SELECT
+                if $simpsel->{type} ne '*' && !$node->isa($simpsel->{type});
 
-    my $code_sel = sub {
-        my ($res, $tree) = @_;
-    };
+            $res_set->add($node);
+        }
+    }
+}
 
-    my @res;
-    for my $sel (@{$pexpr}) {
-        # XXX
+sub _sel {
+    my ($opts, $sel, @nodes) = @_;
+
+    my @simpsels = @$sel;
+
+    my $res_set;
+    my $i = 0;
+    while (@simpsels) {
+        if ($i++ == 0) {
+            my $simpsel = shift @simpsels;
+            $res_set = Data::CSel::_ObjSet->new;
+            _simpsel($opts, $simpsel, 1, $res_set, @nodes);
+        } else {
+            my $combinator = shift @simpsels;
+            my $simpsel = shift @simpsels;
+            if ($combinator->{combinator} eq ' ') { # descendant
+                my @res = $res_set->as_list;
+                last unless @res;
+                my @all_children = map {
+                    my @c = $_->children;
+                    @c==1 && ref($c[0]) eq 'ARRAY' ? @{$c[0]} : @c;
+                } @res;
+                $res_set = Data::CSel::_ObjSet->new;
+                _simpsel($opts, $simpsel, 1, $res_set, @all_children);
+            } elsif ($combinator->{combinator} eq '>') { # child
+                my @res = $res_set->as_list;
+                last unless @res;
+                my @all_children = map {
+                    my @c = $_->children;
+                    @c==1 && ref($c[0]) eq 'ARRAY' ? @{$c[0]} : @c;
+                } @res;
+                $res_set = Data::CSel::_ObjSet->new;
+                _simpsel($opts, $simpsel, 0, $res_set, @all_children);
+            } else {
+                die "BUG: Unknown combinator '$combinator->{combinator}'";
+            }
+        }
     }
 
-    if ($opts->wrap) {
+    $res_set;
+}
+
+sub csel {
+    my $opts;
+    if (ref($_[0]) eq 'HASH') {
+        $opts = shift;
+    } else {
+        $opts = {};
+    }
+    my $expr = shift;
+    my @nodes = @_;
+
+    my $pexpr = parse_csel($expr);
+
+    my $res_set = Data::CSel::_ObjSet->new;
+    for my $sel (@$pexpr) {
+        my $res_set_sel = _sel($opts, $sel, @nodes);
+        $res_set->add_set($res_set_sel);
+    }
+
+    my @res = $res_set->as_list;
+    if ($opts->{wrap}) {
         require Data::CSel::Selection;
-        return Data::CSel::Selection->new(@res);
+        return Data::CSel::Selection->new(\@res);
     } else {
         return @res;
     }
 }
 
+package # hide from PAUSE
+    Data::CSel::_ObjSet;
+
+use Scalar::Util qw(refaddr);
+
+sub new {
+    my $class = shift;
+    bless [
+        {}, # [0] hash
+        {}, # [1] insert order
+    ], $class;
+}
+
+sub add {
+    my ($self, $obj) = @_;
+    my $refaddr = refaddr $obj;
+    return if exists $self->[1]{$refaddr};
+    $self->[0]{$refaddr} = $obj;
+    $self->[1]{$refaddr} = 1 + (keys %{$self->[0]});
+}
+
+sub add_set {
+    my ($self, $set) = @_;
+    for ($self->as_list) {
+        $self->add($_);
+    }
+}
+
+sub as_list {
+    my $self = shift;
+    my $hash = $self->[0];
+    my $insert_orders = $self->[1];
+    map { $hash->{$_} }
+        sort { $insert_orders->{$a} <=> $insert_orders->{$b} }
+            keys %$hash;
+}
+
 1;
-# ABSTRACT: Select nodes of tree object using CSS Selector-like syntax
+# ABSTRACT: Select tree node objects using CSS Selector-like syntax
 
 =head1 SYNOPSIS
 
@@ -295,7 +393,7 @@ sub csel {
  my @cells = csel("Table[name=~/data/i] TCell[value isnt '']:first", $tree);
 
  # ditto, but wrap result using a Data::CSel::Selection
- my $res = csel("...", $data, {wrap=>1});
+ my $res = csel({wrap=>1}, "Table ...", $tree);
 
  # call method 'foo' of each node object (works even when there are zero nodes
  # in the selection object, or when some nodes do not support the 'foo' method
@@ -305,7 +403,7 @@ sub csel {
 =head1 DESCRIPTION
 
 This module lets you use a query language (hereby named CSel) that is similar to
-CSS Selector to select nodes of tree object.
+CSS Selector to select nodes from a tree of objects.
 
 
 =head1 EXPRESSION SYNTAX
@@ -695,20 +793,29 @@ They are not used in CSel.
 =head3 Syntax of attribute selector is a bit different
 
 In CSel, the syntax of attribute selector is made simpler and more regular.
+
 There are operators not supported by CSel, but CSel adds more operators from
 Perl. In particular, the whole substring matching operations like
 C<[attr^=val]>, C<[attr$=val]>, C<[attr*=val]>, C<[attr~=val]>, and
 C<[attr|=val]> are replaced with the more flexible regex matching instead
 C<[attr =~ /re/]>.
 
+String must always be quoted, e.g.:
+
+ p[align="middle"]
+ p[align='middle']
+
+instead of just:
+
+ p[align=middle]
+
 =head3 Different pseudo-classes supported
 
 Some CSS pseudo-classes only make sense for a DOM or a visual browser, e.g.
 C<:link>, C<:visited>, C<:hover>, so they are not supported.
 
-=head3 :has(p) and :not(p) needs quoted value
-
-In CSel, C<p> is a regular string literal and must be quoted.
+C<:has(p)> and C<:not(p)> needs quoted value. In CSel, C<p> is a regular string
+literal and must be quoted.
 
 =head3 There is no concept of CSS namespaces
 
@@ -717,19 +824,19 @@ But Perl package names are already hierarchical.
 
 =head1 FUNCTIONS
 
-=head2 csel($expr, $tree [ , \%opts ]) => list|selection
+=head2 csel([ \%opts , ] $expr, @tree_nodes) => list|selection_object
 
-Select nodes from a tree object C<$tree> using CSel expression C<$expr>. See
-L<Data::CSel> for the CSel syntax. Will return a list of mattching node objects
-(unless when C<wrap> option is true, in which case will return a
-L<Data::CSel::Selection> object instead). Will die on errors (e.g. syntax error
-in expression, object not having the requied method, etc).
+Select from tree node objects C<@tree_nodes> using CSel expression C<$expr>.
+Will return a list of mattching node objects (unless when C<wrap> option is
+true, in which case will return a L<Data::CSel::Selection> object instead). Will
+die on errors (e.g. syntax error in expression, objects not having the required
+methods, etc).
 
-A tree object is a node object, while node object is any regular Perl object
-satisfying the following criteria: 1) it supports a C<parent> method which
-should return a single parent node object, or undef if object is the root node);
-2) it supports a C<children> method which should return a list (or an arrayref)
-of node objects or an empty list if object is a leaf node.
+A tree node object is any regular Perl object satisfying the following criteria:
+1) it supports a C<parent> method which should return a single parent node
+object, or undef if object is the root node); 2) it supports a C<children>
+method which should return a list (or an arrayref) of children node objects
+(where the list/array will be empty for a leaf node).
 
 Known options:
 

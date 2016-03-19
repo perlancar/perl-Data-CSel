@@ -81,7 +81,11 @@ our $RE =
                       (?:
                           # optional type selector + one or more filters
                           ((?&TYPE_NAME))?
-                          (?{ [$^R, {type=>$^N // '*', filters=>[]}] })
+                          (?{
+                              # XXX sometimes $^N is ' '?
+                              my $t = $^N // '*';
+                              $t = '*' if $t eq ' ';
+                              [$^R, {type=>$t}] })
                           (?&FILTER) # [[$^R, $simple_selector], $filter]
                           (?{
                               push @{ $^R->[0][1]{filters} }, $^R->[1];
@@ -100,7 +104,7 @@ our $RE =
               )
 
               (?<TYPE_NAME>
-                  ([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z0-9_]+)*|\*)
+                  [A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z0-9_]+)*|\*
               )
 
               (?<FILTER>
@@ -153,7 +157,7 @@ our $RE =
                       \s*(?:=~|!~)\s* |
                       \s*(?:!=|>=?|<=?|==?)\s* |
                       \s+(?:eq|ne|lt|gt|le|ge)\s+ |
-                      \s+(?:isnt|is|isnta|isa)\s+
+                      \s+(?:isnt|is)\s+
                   )
                   (?{
                       my $op = $^N;
@@ -235,6 +239,7 @@ our $RE =
                       /
                       (?:
                           [^\\]+
+                      |
                           \\ .
                       )*
                       /
@@ -263,17 +268,92 @@ sub parse_csel {
 }
 
 sub _simpsel {
+    no warnings 'uninitialized';
+
     my ($opts, $simpsel, $is_recursive, $res_set, @nodes) = @_;
+
+    #use Data::Dmp; say "D: _simpsel(expr=", dmp($simpsel), ", nodes=[", join(" ", map {$_->{id}} @nodes), "])";
 
     for my $node (@nodes) {
       SELECT:
         {
+            #say "D:  evaluating node: ".$node->{id};
+
             # type selector
             last SELECT
                 if $simpsel->{type} ne '*' && !$node->isa($simpsel->{type});
 
+            for my $f (@{ $simpsel->{filters} // [] }) {
+                if (defined (my $attr = $f->{attr})) {
+                    last SELECT unless $node->can($f->{attr}) || $node->can('AUTOLOAD');
+                    my $op  = $f->{op};
+                    my $opv = $f->{value};
+
+                    my $val = $node->$attr;
+                    if ($op eq '=' || $op eq '==') {
+                        last SELECT unless $val == $opv;
+                    } elsif ($op eq 'eq') {
+                        last SELECT unless $val eq $opv;
+                    } elsif ($op eq '!=') {
+                        last SELECT unless $val != $opv;
+                    } elsif ($op eq 'ne') {
+                        last SELECT unless $val ne $opv;
+                    } elsif ($op eq '>') {
+                        last SELECT unless $val >  $opv;
+                    } elsif ($op eq 'gt') {
+                        last SELECT unless $val gt $opv;
+                    } elsif ($op eq '>=') {
+                        last SELECT unless $val >= $opv;
+                    } elsif ($op eq 'ge') {
+                        last SELECT unless $val ge $opv;
+                    } elsif ($op eq '<') {
+                        last SELECT unless $val <  $opv;
+                    } elsif ($op eq 'lt') {
+                        last SELECT unless $val lt $opv;
+                    } elsif ($op eq '<=') {
+                        last SELECT unless $val <= $opv;
+                    } elsif ($op eq 'le') {
+                        last SELECT unless $val le $opv;
+                    } elsif ($op eq 'is') {
+                        if (!defined($opv)) {
+                            last SELECT unless !defined($val);
+                        } elsif ($opv) {
+                            last SELECT unless $val;
+                        } else {
+                            last SELECT unless !$val;
+                        }
+                    } elsif ($op eq 'isnt') {
+                        if (!defined($opv)) {
+                            last SELECT unless defined($val);
+                        } elsif ($opv) {
+                            last SELECT unless !$val;
+                        } else {
+                            last SELECT unless $val;
+                        }
+                    } elsif ($op eq '=~') {
+                        last SELECT unless $val =~ $opv;
+                    } elsif ($op eq '!~') {
+                        last SELECT unless $val !~ $opv;
+                    } else {
+                        die "BUG: Unsupported operator '$op' in attr_selector";
+                    }
+                }
+            }
+
+            # pass all type and filters, add to result
+            #say "D:    adding to result: ".$node->{id};
             $res_set->add($node);
         }
+    }
+
+    {
+        last unless $is_recursive;
+        my @children_nodes = map {
+            my @c = $_->children;
+            @c==1 && ref($c[0]) eq 'ARRAY' ? @{$c[0]} : @c;
+        } @nodes;
+        last unless @children_nodes;
+        _simpsel($opts, $simpsel, 1, $res_set, @children_nodes);
     }
 }
 
@@ -369,7 +449,7 @@ sub add {
 
 sub add_set {
     my ($self, $set) = @_;
-    for ($self->as_list) {
+    for ($set->as_list) {
         $self->add($_);
     }
 }
@@ -687,22 +767,6 @@ value.
  Person[age isnt null]
 
 will select all Person objects where age is defined.
-
-=item * C<isa> and C<isnta>
-
-Checking C<isa()> relationship.
-
-Example:
-
- [date isa "DateTime"]
-
-will select all objects that have a C<date> attribute having a value that is a
-L<DateTime> object.
-
- [date isnta "DateTime"]
-
-This is the opposite of C<isa>, will select all objects that have a C<date>
-attribute having a value that is not a DateTime object.
 
 =back
 

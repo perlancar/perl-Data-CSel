@@ -5,7 +5,7 @@ sub new {
     my $class = shift;
     my ($attrs, $parent) = @_;
     my $obj = bless {parent=>$parent, children=>[]}, $class;
-    for (keys %$attrs) { $obj->{$_} = $_ }
+    for (keys %$attrs) { $obj->{$_} = $attrs->{$_} }
     if ($parent) { push @{$parent->{children}}, $obj }
     $obj;
 }
@@ -26,8 +26,15 @@ sub children {
     }
 }
 
+sub as_string {
+    my $self = shift;
+    my $level = shift // 0;
+    ("  " x $level ) . "$self->{id}\n" .
+        join("", map { $_->as_string($level+1) } @{ $self->{children} });
+}
+
 sub AUTOLOAD {
-    my $method = shift;
+    my $method = $AUTOLOAD; $method =~ s/.*:://;
     my $self = shift;
     $self->{$method};
 }

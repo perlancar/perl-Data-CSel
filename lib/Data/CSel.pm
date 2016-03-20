@@ -7,7 +7,8 @@ use 5.010001;
 use strict;
 use warnings;
 
-use Scalar::Util qw(refaddr);
+#use List::Util qw(first);
+use Scalar::Util qw(refaddr looks_like_number);
 
 use Exporter qw(import);
 our @EXPORT_OK = qw(
@@ -269,102 +270,109 @@ sub parse_csel {
     return undef;
 }
 
-sub _simpsel {
-    no warnings 'numeric', 'uninitialized';
-
-    my ($opts, $simpsel, $is_recursive, $res_set, @nodes) = @_;
-
-    #use Data::Dmp; say "D: _simpsel(expr=", dmp($simpsel), ", nodes=[", join(" ", map {$_->{id}} @nodes), "])";
-
-    for my $node (@nodes) {
-      SELECT:
-        {
-            #say "D:  evaluating node: ".$node->{id};
-
-            # type selector
-            last SELECT
-                if $simpsel->{type} ne '*' && !$node->isa($simpsel->{type});
-
-            for my $f (@{ $simpsel->{filters} // [] }) {
-                if (defined (my $attr = $f->{attr})) {
-                    last SELECT unless $node->can($f->{attr}) || $node->can('AUTOLOAD');
-                    my $op  = $f->{op};
-                    my $opv = $f->{value};
-
-                    my $val = $node->$attr;
-                    if ($op eq '=' || $op eq '==') {
-                        last SELECT unless $val == $opv;
-                    } elsif ($op eq 'eq') {
-                        last SELECT unless $val eq $opv;
-                    } elsif ($op eq '!=') {
-                        last SELECT unless $val != $opv;
-                    } elsif ($op eq 'ne') {
-                        last SELECT unless $val ne $opv;
-                    } elsif ($op eq '>') {
-                        last SELECT unless $val >  $opv;
-                    } elsif ($op eq 'gt') {
-                        last SELECT unless $val gt $opv;
-                    } elsif ($op eq '>=') {
-                        last SELECT unless $val >= $opv;
-                    } elsif ($op eq 'ge') {
-                        last SELECT unless $val ge $opv;
-                    } elsif ($op eq '<') {
-                        last SELECT unless $val <  $opv;
-                    } elsif ($op eq 'lt') {
-                        last SELECT unless $val lt $opv;
-                    } elsif ($op eq '<=') {
-                        last SELECT unless $val <= $opv;
-                    } elsif ($op eq 'le') {
-                        last SELECT unless $val le $opv;
-                    } elsif ($op eq 'is') {
-                        if (!defined($opv)) {
-                            last SELECT unless !defined($val);
-                        } elsif ($opv) {
-                            last SELECT unless $val;
-                        } else {
-                            last SELECT unless !$val;
-                        }
-                    } elsif ($op eq 'isnt') {
-                        if (!defined($opv)) {
-                            last SELECT unless defined($val);
-                        } elsif ($opv) {
-                            last SELECT unless !$val;
-                        } else {
-                            last SELECT unless $val;
-                        }
-                    } elsif ($op eq '=~') {
-                        last SELECT unless $val =~ $opv;
-                    } elsif ($op eq '!~') {
-                        last SELECT unless $val !~ $opv;
-                    } else {
-                        die "BUG: Unsupported operator '$op' in attr_selector";
-                    }
-                }
-            }
-
-            # pass all type and filters, add to result
-            #say "D:    adding to result: ".$node->{id};
-            $res_set->add($node);
-        }
-    }
-
-    {
-        last unless $is_recursive;
-        my @children_nodes = map {
-            my @c = $_->children;
-            @c==1 && ref($c[0]) eq 'ARRAY' ? @{$c[0]} : @c;
-        } @nodes;
-        last unless @children_nodes;
-        _simpsel($opts, $simpsel, 1, $res_set, @children_nodes);
-    }
+sub _node_children {
+    my $node = shift;
+    my @c = $node->children;
+    @c = @{$c[0]} if @c==1 && ref($c[0]) eq 'ARRAY';
+    @c;
 }
 
-sub _little_siblings {
+sub _node_descendants {
+    my $node = shift;
+    my @c = _node_children($node);
+    (@c, map { _node_descendants($_) } _node_children($node));
+}
+
+sub _node_is_first_child {
+    my $node = shift;
+    my $parent = $node->parent;
+    return 0 unless $parent;
+    my @c = _node_children($parent);
+    @c && refaddr($node) == refaddr($c[0]);
+}
+
+sub _node_is_last_child {
+    my $node = shift;
+    my $parent = $node->parent;
+    return 0 unless $parent;
+    my @c = _node_children($parent);
+    @c && refaddr($node) == refaddr($c[-1]);
+}
+
+sub _node_is_only_child {
+    my $node = shift;
+    my $parent = $node->parent;
+    return 0 unless $parent;
+    my @c = _node_children($parent);
+    @c==1;# && refaddr($node) == refaddr($c[0]);
+}
+
+sub _node_is_nth_child {
+    my ($node, $n) = @_;
+    my $parent = $node->parent;
+    return 0 unless $parent;
+    my @c = _node_children($parent);
+    @c >= $n && refaddr($node) == refaddr($c[$n-1]);
+}
+
+sub _node_is_nth_last_child {
+    my ($node, $n) = @_;
+    my $parent = $node->parent;
+    return 0 unless $parent;
+    my @c = _node_children($parent);
+    @c >= $n && refaddr($node) == refaddr($c[-$n]);
+}
+
+sub _node_is_first_of_type {
+    my $node = shift;
+    my $parent = $node->parent;
+    return 0 unless $parent;
+    my $type = ref($node);
+    my @c = grep { $_->isa($type) } _node_children($parent);
+    @c && refaddr($node) == refaddr($c[0]);
+}
+
+sub _node_is_last_of_type {
+    my $node = shift;
+    my $parent = $node->parent;
+    return 0 unless $parent;
+    my $type = ref($node);
+    my @c = grep { $_->isa($type) } _node_children($parent);
+    @c && refaddr($node) == refaddr($c[-1]);
+}
+
+sub _node_is_only_of_type {
+    my $node = shift;
+    my $parent = $node->parent;
+    return 0 unless $parent;
+    my $type = ref($node);
+    my @c = grep { $_->isa($type) } _node_children($parent);
+    @c == 1; # && refaddr($node) == refaddr($c[0]);
+}
+
+sub _node_is_nth_of_type {
+    my ($node, $n) = @_;
+    my $parent = $node->parent;
+    return 0 unless $parent;
+    my $type = ref($node);
+    my @c = grep { $_->isa($type) } _node_children($parent);
+    @c >= $n && refaddr($node) == refaddr($c[$n-1]);
+}
+
+sub _node_is_nth_last_of_type {
+    my ($node, $n) = @_;
+    my $parent = $node->parent;
+    return 0 unless $parent;
+    my $type = ref($node);
+    my @c = grep { $_->isa($type) } _node_children($parent);
+    @c >= $n && refaddr($node) == refaddr($c[-$n]);
+}
+
+sub _node_little_siblings {
     my $node = shift;
     my $parent = $node->parent or return ();
     my $refaddr = refaddr($node);
-    my @children = $parent->children;
-    @children = @{$children[0]} if @children==1 && ref($children[0]) eq 'ARRAY';
+    my @children = _node_children($parent);
     for my $i (0..$#children-1) {
         if (refaddr($children[$i]) == $refaddr) {
             return @children[$i+1 .. $#children];
@@ -373,12 +381,11 @@ sub _little_siblings {
     ();
 }
 
-sub _adjacent_little_sibling {
+sub _node_adjacent_little_sibling {
     my $node = shift;
     my $parent = $node->parent or return undef;
     my $refaddr = refaddr($node);
-    my @children = $parent->children;
-    @children = @{$children[0]} if @children==1 && ref($children[0]) eq 'ARRAY';
+    my @children = _node_children($parent);
     for my $i (0..$#children-1) {
         if (refaddr($children[$i]) == $refaddr) {
             return $children[$i+1];
@@ -387,68 +394,201 @@ sub _adjacent_little_sibling {
     undef;
 }
 
+sub _uniq_objects {
+    my @uniq;
+    my %mem;
+    for (@_) {
+        push @uniq, $_ unless $mem{refaddr($_)}++;
+    }
+    @uniq;
+}
+
+sub _simpsel {
+    no warnings 'numeric', 'uninitialized';
+
+    my ($opts, $simpsel, $is_recursive, @nodes) = @_;
+
+    #say "D: _simpsel(recursive=$is_recursive, nodes=[".join(",",map {$_->{id}} @nodes)."]";
+
+    my @res;
+    if ($is_recursive) {
+        @res = (@nodes, map {_node_descendants($_)} @nodes);
+    } else {
+        @res = @nodes;
+    }
+    #say "D:   intermediate result (after walk): [".join(",",map {$_->{id}} @res)."]";
+
+    unless ($simpsel->{type} eq '*') {
+        @res = grep { $_->isa($simpsel->{type}) } @res;
+    }
+
+    @res = _uniq_objects(@res);
+    #say "D:   intermediate result (after type): [".join(",",map {$_->{id}} @res)."]";
+
+    for my $f (@{ $simpsel->{filters} // [] }) {
+        last unless @res;
+
+        if (defined (my $attr = $f->{attr})) {
+            my $op  = $f->{op};
+            my $opv = $f->{value};
+
+            my @newres;
+          ITEM:
+            for my $o (@res) {
+                next ITEM unless $o->can($f->{attr}) ||
+                    $o->can('AUTOLOAD');
+
+                my $val = $o->$attr;
+                if ($op eq '=' || $op eq '==') {
+                    if (looks_like_number($opv)) {
+                        next ITEM unless $val == $opv;
+                    } else {
+                        next ITEM unless $val eq $opv;
+                    }
+                } elsif ($op eq 'eq') {
+                    next ITEM unless $val eq $opv;
+                } elsif ($op eq '!=') {
+                    if (looks_like_number($opv)) {
+                        next ITEM unless $val != $opv;
+                    } else {
+                        next ITEM unless $val ne $opv;
+                    }
+                } elsif ($op eq 'ne') {
+                    next ITEM unless $val ne $opv;
+                } elsif ($op eq '>') {
+                    if (looks_like_number($opv)) {
+                        next ITEM unless $val >  $opv;
+                    } else {
+                        next ITEM unless $val gt $opv;
+                    }
+                } elsif ($op eq 'gt') {
+                    next ITEM unless $val gt $opv;
+                } elsif ($op eq '>=') {
+                    if (looks_like_number($opv)) {
+                        next ITEM unless $val >=  $opv;
+                    } else {
+                        next ITEM unless $val gt $opv;
+                    }
+                } elsif ($op eq 'ge') {
+                    next ITEM unless $val ge $opv;
+                } elsif ($op eq '<') {
+                    if (looks_like_number($opv)) {
+                        next ITEM unless $val <  $opv;
+                    } else {
+                        next ITEM unless $val lt $opv;
+                    }
+                } elsif ($op eq 'lt') {
+                    next ITEM unless $val lt $opv;
+                } elsif ($op eq '<=') {
+                    if (looks_like_number($opv)) {
+                        next ITEM unless $val <= $opv;
+                    } else {
+                        next ITEM unless $val le $opv;
+                    }
+                } elsif ($op eq 'le') {
+                    next ITEM unless $val le $opv;
+                } elsif ($op eq 'is') {
+                    if (!defined($opv)) {
+                        next ITEM unless !defined($val);
+                    } elsif ($opv) {
+                        next ITEM unless $val;
+                    } else {
+                        next ITEM unless !$val;
+                    }
+                } elsif ($op eq 'isnt') {
+                    if (!defined($opv)) {
+                        next ITEM unless defined($val);
+                    } elsif ($opv) {
+                        next ITEM unless !$val;
+                    } else {
+                        next ITEM unless $val;
+                    }
+                } elsif ($op eq '=~') {
+                    next ITEM unless $val =~ $opv;
+                } elsif ($op eq '!~') {
+                    next ITEM unless $val !~ $opv;
+                } else {
+                    die "BUG: Unsupported operator '$op' in attr_selector";
+                }
+
+                # pass all attribute filters, add to new result
+                #say "D:    adding to result: ".$o->{id};
+                push @newres, $o;
+            } # for each item
+            @res = @newres;
+        } # attr filter
+
+        if (defined(my $pc = $f->{pseudoclass})) {
+            if ($pc eq 'first') {
+                @res = ($res[0]);
+            } elsif ($pc eq 'last') {
+                @res = ($res[-1]);
+            } elsif ($pc eq 'first-child') {
+                @res = grep { _node_is_first_child($_) } @res;
+            } elsif ($pc eq 'last-child') {
+                @res = grep { _node_is_last_child($_) } @res;
+            } elsif ($pc eq 'only-child') {
+                @res = grep { _node_is_only_child($_) } @res;
+            } elsif ($pc eq 'nth-child') {
+                @res = grep { _node_is_nth_child($_, $f->{args}[0]) } @res;
+            } elsif ($pc eq 'nth-last-child') {
+                @res = grep { _node_is_nth_last_child($_, $f->{args}[0]) } @res;
+            } elsif ($pc eq 'first-of-type') {
+                @res = grep { _node_is_first_of_type($_) } @res;
+            } elsif ($pc eq 'last-of-type') {
+                @res = grep { _node_is_last_of_type($_) } @res;
+            } elsif ($pc eq 'only-of-type') {
+                @res = grep { _node_is_only_of_type($_) } @res;
+            } elsif ($pc eq 'nth-of-type') {
+                @res = grep { _node_is_nth_of_type($_, $f->{args}[0]) } @res;
+            } elsif ($pc eq 'nth-last-of-type') {
+                @res = grep { _node_is_nth_last_of_type($_, $f->{args}[0]) } @res;
+            } else {
+                die "Unsupported pseudo-class '$pc'";
+            }
+        } # pseudoclass filter
+
+        say "D:   intermediate result (after filter): [".join(",",map {$_->{id}} @res)."]";
+    } # for each filter
+    @res;
+}
+
 sub _sel {
     my ($opts, $sel, @nodes) = @_;
 
     my @simpsels = @$sel;
+    my @res;
 
-    my $res_set;
     my $i = 0;
     while (@simpsels) {
         if ($i++ == 0) {
             my $simpsel = shift @simpsels;
-            $res_set = Data::CSel::_ObjSet->new;
-            _simpsel($opts, $simpsel, 1, $res_set, @nodes);
+            @res = _simpsel($opts, $simpsel, 1, @nodes);
         } else {
             my $combinator = shift @simpsels;
             my $simpsel = shift @simpsels;
-            my @res = $res_set->as_list;
             last unless @res;
             if ($combinator->{combinator} eq ' ') { # descendant
-                my @all_children = map {
-                    my @c = $_->children;
-                    @c==1 && ref($c[0]) eq 'ARRAY' ? @{$c[0]} : @c;
-                } @res;
-                $res_set = Data::CSel::_ObjSet->new;
-                _simpsel($opts, $simpsel, 1, $res_set, @all_children);
+                @res = _simpsel($opts, $simpsel, 1,
+                                map { _node_children($_) } @res);
             } elsif ($combinator->{combinator} eq '>') { # child
-                my @all_children = map {
-                    my @c = $_->children;
-                    @c==1 && ref($c[0]) eq 'ARRAY' ? @{$c[0]} : @c;
-                } @res;
-                $res_set = Data::CSel::_ObjSet->new;
-                _simpsel($opts, $simpsel, 0, $res_set, @all_children);
+                @res = _simpsel($opts, $simpsel, 0,
+                                map { _node_children($_) } @res);
             } elsif ($combinator->{combinator} eq '~') { # sibling
-                my %mem;
-                my @all_little_siblings;
-                for my $node (@res) {
-                    for (_little_siblings($node)) {
-                        push @all_little_siblings, $_
-                            unless $mem{refaddr($_)}++;
-                    }
-                }
-                $res_set = Data::CSel::_ObjSet->new;
-                _simpsel($opts, $simpsel, 0, $res_set, @all_little_siblings);
+                @res = _simpsel($opts, $simpsel, 0,
+                                map { _node_little_siblings($_) } @res);
             } elsif ($combinator->{combinator} eq '+') { # adjacent sibling
-                my %mem;
-                my @all_adjacent_little_siblings;
-                for my $node (@res) {
-                    for (_adjacent_little_sibling($node)) {
-                        next unless defined;
-                        push @all_adjacent_little_siblings, $_
-                            unless $mem{refaddr($_)}++;
-                    }
-                }
-                $res_set = Data::CSel::_ObjSet->new;
-                _simpsel($opts, $simpsel, 0, $res_set,
-                         @all_adjacent_little_siblings);
+                @res = _simpsel($opts, $simpsel, 0,
+                                grep {defined}
+                                    map { _node_adjacent_little_sibling($_) }
+                                    @res);
             } else {
                 die "BUG: Unknown combinator '$combinator->{combinator}'";
             }
         }
     }
 
-    $res_set;
+    @res;
 }
 
 sub csel {
@@ -463,56 +603,14 @@ sub csel {
 
     my $pexpr = parse_csel($expr);
 
-    my $res_set = Data::CSel::_ObjSet->new;
-    for my $sel (@$pexpr) {
-        my $res_set_sel = _sel($opts, $sel, @nodes);
-        $res_set->add_set($res_set_sel);
-    }
+    my @res = _uniq_objects(map { _sel($opts, $_, @nodes) } @$pexpr );
 
-    my @res = $res_set->as_list;
     if ($opts->{wrap}) {
         require Data::CSel::Selection;
         return Data::CSel::Selection->new(\@res);
     } else {
         return @res;
     }
-}
-
-package # hide from PAUSE
-    Data::CSel::_ObjSet;
-
-use Scalar::Util qw(refaddr);
-
-sub new {
-    my $class = shift;
-    bless [
-        {}, # [0] hash
-        {}, # [1] insert order
-    ], $class;
-}
-
-sub add {
-    my ($self, $obj) = @_;
-    my $refaddr = refaddr $obj;
-    return if exists $self->[1]{$refaddr};
-    $self->[0]{$refaddr} = $obj;
-    $self->[1]{$refaddr} = 1 + (keys %{$self->[0]});
-}
-
-sub add_set {
-    my ($self, $set) = @_;
-    for ($set->as_list) {
-        $self->add($_);
-    }
-}
-
-sub as_list {
-    my $self = shift;
-    my $hash = $self->[0];
-    my $insert_orders = $self->[1];
-    map { $hash->{$_} }
-        sort { $insert_orders->{$a} <=> $insert_orders->{$b} }
-            keys %$hash;
 }
 
 1;
@@ -650,16 +748,6 @@ The following are supported operators:
 
 =over
 
-=item * C<=> (or C<==>)
-
-Numerical equality using Perl's C<==> operator.
-
-Example:
-
- TableCell[length=3]
-
-selects all C<TableCell> objects that have C<length()> with the value of 3.
-
 =item * C<eq>
 
 String equality using Perl's C<eq> operator.
@@ -670,16 +758,24 @@ Example:
 
 selects all C<Table> objects that have C<title()> with the value of C<"TOC">.
 
-=item * C<!=>
+=item * C<=> (or C<==>)
 
-Numerical inequality using Perl's C<!=> operator.
+Numerical equality using Perl's C<==> operator.
 
 Example:
 
- TableCell[length != 3]
+ TableCell[length=3]
 
-selects all C<TableCell> objects that have C<length()> with the value not equal
-to 3.
+selects all C<TableCell> objects that have C<length()> with the value of 3.
+
+To avoid common trap, will switch to using Perl's C<eq> operator when operand
+does not look like number, e.g.:
+
+ Table[title = 'foo']
+
+is the same as:
+
+ Table[title eq 'foo']
 
 =item * C<ne>
 
@@ -692,16 +788,25 @@ Example:
 selects all C<Table> objects that have C<title()> with the value not equal to
 C<"TOC">.
 
-=item * C<< > >>
+=item * C<!=>
 
-Numerical greater-than using Perl's C<< > >> operator.
+Numerical inequality using Perl's C<!=> operator.
 
 Example:
 
- TableCell[length > 3]
+ TableCell[length != 3]
 
-selects all C<TableCell> objects that have C<length()> with the value greater
-than 3.
+selects all C<TableCell> objects that have C<length()> with the value not equal
+to 3.
+
+To avoid common trap, will switch to using Perl's C<ne> operator when operand
+does not look like number, e.g.:
+
+ Table[title != 'foo']
+
+is the same as:
+
+ Table[title ne 'foo']
 
 =item * C<gt>
 
@@ -714,16 +819,25 @@ Example:
 selects all C<Person> objects that have C<first_name()> with the value
 asciibetically greater than C<"Albert">.
 
-=item * C<< >= >>
+=item * C<< > >>
 
-Numerical greater-than-or-equal-to using Perl's C<< >= >> operator.
+Numerical greater-than using Perl's C<< > >> operator.
 
 Example:
 
- TableCell[length >= 3]
+ TableCell[length > 3]
 
 selects all C<TableCell> objects that have C<length()> with the value greater
-than or equal to 3.
+than 3.
+
+To avoid common trap, will switch to using Perl's C<gt> operator when operand
+does not look like number, e.g.:
+
+ Person[first_name > 'Albert']
+
+is the same as:
+
+ Person[first_name gt "Albert"]
 
 =item * C<ge>
 
@@ -736,16 +850,25 @@ Example:
 selects all C<Person> objects that have C<first_name()> with the value
 asciibetically greater than or equal to C<"Albert">.
 
-=item * C<< < >>
+=item * C<< >= >>
 
-Numerical less-than using Perl's C<< < >> operator.
+Numerical greater-than-or-equal-to using Perl's C<< >= >> operator.
 
 Example:
 
- TableCell[length < 3]
+ TableCell[length >= 3]
 
-selects all C<TableCell> objects that have C<length()> with the value less
-than 3.
+selects all C<TableCell> objects that have C<length()> with the value greater
+than or equal to 3.
+
+To avoid common trap, will switch to using Perl's C<ge> operator when operand
+does not look like number, e.g.:
+
+ Person[first_name >= 'Albert']
+
+is the same as:
+
+ Person[first_name ge "Albert"]
 
 =item * C<lt>
 
@@ -758,16 +881,25 @@ Example:
 selects all C<Person> objects that have C<first_name()> with the value
 asciibetically less than C<"Albert">.
 
-=item * C<< <= >>
+=item * C<< < >>
 
-Numerical less-than-or-equal-to using Perl's C<< <= >> operator.
+Numerical less-than using Perl's C<< < >> operator.
 
 Example:
 
- TableCell[length <= 3]
+ TableCell[length < 3]
 
 selects all C<TableCell> objects that have C<length()> with the value less
-than or equal to 3.
+than 3.
+
+To avoid common trap, will switch to using Perl's C<lt> operator when operand
+does not look like number, e.g.:
+
+ Person[first_name < 'Albert']
+
+is the same as:
+
+ Person[first_name lt "Albert"]
 
 =item * C<le>
 
@@ -779,6 +911,26 @@ Example:
 
 selects all C<Person> objects that have C<first_name()> with the value
 asciibetically less than or equal to C<"Albert">.
+
+=item * C<< <= >>
+
+Numerical less-than-or-equal-to using Perl's C<< <= >> operator.
+
+Example:
+
+ TableCell[length <= 3]
+
+selects all C<TableCell> objects that have C<length()> with the value less
+than or equal to 3.
+
+To avoid common trap, will switch to using Perl's C<le> operator when operand
+does not look like number, e.g.:
+
+ Person[first_name <= 'Albert']
+
+is the same as:
+
+ Person[first_name le "Albert"]
 
 =item * C<=~> and C<!~>
 
@@ -861,6 +1013,10 @@ Select only object that is the first child of its parent.
 
 Select only object that is the last child of its parent.
 
+=item * C<:only-child>
+
+Select only object that is the only child of its parent.
+
 =item * C<:nth-child(n)>
 
 Select only object that is the I<n>th child of its parent.
@@ -869,19 +1025,15 @@ Select only object that is the I<n>th child of its parent.
 
 Select only object that is the I<n>th last child of its parent.
 
-=item * C<:only-child>
-
-Select only object that is the only child of its parent.
-
 =item * C<:first-of-type>
 
 =item * C<:last-of-type>
 
+=item * C<:only-of-type>
+
 =item * C<:nth-of-type(n)>
 
 =item * C<:nth-last-of-type(n)>
-
-=item * C<:empty>
 
 =item * C<:not(s)>
 

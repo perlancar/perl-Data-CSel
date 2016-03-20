@@ -69,7 +69,6 @@ subtest "simple selector: attribute selector" => sub {
         nodes  => [$root],
         result => [$b11],
     );
-
     test_csel(
         name   => 'op:eq',
         expr   => "TN2[kind eq 'b']",
@@ -102,10 +101,22 @@ subtest "simple selector: attribute selector" => sub {
         result => [$b22],
     );
     test_csel(
+        name   => 'op:= uses eq',
+        expr   => "[id = 'a2']",
+        nodes  => [$root],
+        result => [$a2],
+    );
+    test_csel(
         name   => 'op:!=',
         expr   => "[kind eq 'b'][int != 2]",
         nodes  => [$root],
         result => [$b11, $b12, $b21, $b23],
+    );
+    test_csel(
+        name   => 'op:!= uses ne',
+        expr   => "[kind eq 'a'][id != 'a1']",
+        nodes  => [$root],
+        result => [$a2],
     );
     test_csel(
         name   => 'op:>',
@@ -182,15 +193,54 @@ subtest "simple selector: attribute selector" => sub {
         nodes  => [$root],
         result => [$b21],
     );
+    # XXX op:> uses gt
+    # XXX op:>= uses ge
+    # XXX op:< uses lt
+    # XXX op:<= uses le
 };
 
-#subtest "simple selector: pseudo-class" => sub {
-#};
+subtest "simple selector: pseudo-class" => sub {
+    test_csel(
+        expr   => "TN:first",
+        nodes  => [$root],
+        result => [$root],
+    );
+    test_csel(
+        expr   => "TN:last",
+        nodes  => [$root],
+        result => [$b23],
+    );
+    test_csel(
+        expr   => "TN:first-child",
+        nodes  => [$root],
+        result => [$a1, $b11, $b21],
+    );
+    test_csel(
+        expr   => "TN:last-child",
+        nodes  => [$root],
+        result => [$a2, $b12, $b23],
+    );
+    # XXX :only-child
+    test_csel(
+        expr   => "TN:nth-child(2)",
+        nodes  => [$root],
+        result => [$a2, $b12, $b22],
+    );
+    test_csel(
+        expr   => "TN:nth-last-child(3)",
+        nodes  => [$root],
+        result => [$b21],
+    );
+    # XXX: first-of-type
+    # XXX: last-of-type
+    # XXX: only-of-type
+    # XXX: nth-of-type
+    # XXX: nth-last-of-type
+};
 
 #subtest "simple selector: attribute selector + pseudo-class" => sub {
 #};
 
-L1:
 subtest "selector: combinator" => sub {
     test_csel(
         name   => "descendant",
@@ -224,8 +274,24 @@ subtest "selector: combinator" => sub {
     );
 };
 
-#subtest "selectors: comma" => sub {
-#};
+subtest "selectors: comma" => sub {
+    test_csel(
+        expr   => "TN1, TN2",
+        nodes  => [$root],
+        result => [$b23, $b12, $b21],
+    );
+    test_csel(
+        name   => "ordering",
+        expr   => "TN2, TN1",
+        nodes  => [$root],
+        result => [$b12, $b21, $b23],
+    );
+    test_csel(
+        expr   => "TN1, [id='a2'] TN2",
+        nodes  => [$root],
+        result => [$b23, $b21],
+    );
+};
 
 DONE_TESTING:
 done_testing;

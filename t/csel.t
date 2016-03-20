@@ -32,9 +32,10 @@ my ($a1, $b11, $b12, $a2, $b21, $b22, $b23);
     }
     $a2 = TN->new({id=>"a2", kind=>"a"}, $root);
     {
-        $b21 = TN2->new({id=>"b21", kind=>"b", bool=>0, defined=>1, str=>"cde"}, $a2);
-        $b22 = TN ->new({id=>"b22", kind=>"b"}, $a2);
-        $b23 = TN1->new({id=>"b23", kind=>"b"}, $a2);
+        $b21 = TN2->new({id=>"b21", kind=>"b", int=>"a",
+                         bool=>0, defined=>1, str=>"cde"}, $a2);
+        $b22 = TN ->new({id=>"b22", kind=>"b", int=>2}, $a2);
+        $b23 = TN1->new({id=>"b23", kind=>"b", int=>3}, $a2);
     }
     #print $root->as_string;
 }
@@ -61,6 +62,7 @@ subtest "simple selector: universal selector" => sub {
 };
 
 subtest "simple selector: attribute selector" => sub {
+    # XXX test [attr]
     test_csel(
         name   => 'without type',
         expr   => "[id eq 'b11']",
@@ -80,12 +82,55 @@ subtest "simple selector: attribute selector" => sub {
         nodes  => [$root],
         result => [$b21],
     );
-    # XXX: op =, ==
-    # XXX: op !=
-    # XXX: op >
-    # XXX: op >=
-    # XXX: op <
-    # XXX: op <=
+    test_csel(
+        name   => 'op:ne',
+        expr   => "TN2[id ne 'b12']",
+        nodes  => [$root],
+        result => [$b21],
+    );
+
+    test_csel(
+        name   => 'op:=',
+        expr   => "[int = 2]",
+        nodes  => [$root],
+        result => [$b22],
+    );
+    test_csel(
+        name   => 'op:==',
+        expr   => "[int == 2]",
+        nodes  => [$root],
+        result => [$b22],
+    );
+    test_csel(
+        name   => 'op:!=',
+        expr   => "[kind eq 'b'][int != 2]",
+        nodes  => [$root],
+        result => [$b11, $b12, $b21, $b23],
+    );
+    test_csel(
+        name   => 'op:>',
+        expr   => "[int > 2]",
+        nodes  => [$root],
+        result => [$b23],
+    );
+    test_csel(
+        name   => 'op:>=',
+        expr   => "[int >= 3]",
+        nodes  => [$root],
+        result => [$b23],
+    );
+    test_csel(
+        name   => 'op:<',
+        expr   => "[kind eq 'b'][int < 3]",
+        nodes  => [$root],
+        result => [$b11, $b12, $b21, $b22],
+    );
+    test_csel(
+        name   => 'op:<=',
+        expr   => "[kind eq 'b'][int <= 2]",
+        nodes  => [$root],
+        result => [$b11, $b12, $b21, $b22],
+    );
 
     test_csel(
         name   => 'op:=~',

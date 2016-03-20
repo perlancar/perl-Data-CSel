@@ -408,7 +408,7 @@ sub _simpsel {
 
     my ($opts, $simpsel, $is_recursive, @nodes) = @_;
 
-    #say "D: _simpsel(recursive=$is_recursive, nodes=[".join(",",map {$_->{id}} @nodes)."]";
+    #use Data::Dmp; say "D: _simpsel(expr", dmp($simpsel), ", recursive=$is_recursive, nodes=[".join(",",map {$_->{id}} @nodes)."])";
 
     my @res;
     if ($is_recursive) {
@@ -543,12 +543,23 @@ sub _simpsel {
                 @res = grep { _node_is_nth_of_type($_, $f->{args}[0]) } @res;
             } elsif ($pc eq 'nth-last-of-type') {
                 @res = grep { _node_is_nth_last_of_type($_, $f->{args}[0]) } @res;
+            } elsif ($pc eq 'has') {
+                @res = grep { csel($opts, $f->{args}[0], $_) }
+                    _uniq_objects(
+                        grep {defined} map { $_->parent } @res);
+            } elsif ($pc eq 'not') {
+                #say "D: res=(".join(",", map {$_->{id}} @res).")";
+                my @all_matches = map { csel($opts, $f->{args}[0], $_) } @res;
+                #say "D: all_matches=(".join(",", map {$_->{id}} @all_matches).")";
+                my %all_matches_refaddrs;
+                for (@all_matches) { $all_matches_refaddrs{refaddr($_)}++ }
+                @res = grep { !$all_matches_refaddrs{refaddr($_)} } @res;
             } else {
                 die "Unsupported pseudo-class '$pc'";
             }
         } # pseudoclass filter
 
-        say "D:   intermediate result (after filter): [".join(",",map {$_->{id}} @res)."]";
+        #say "D:   intermediate result (after filter): [".join(",",map {$_->{id}} @res)."]";
     } # for each filter
     @res;
 }

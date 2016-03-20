@@ -236,6 +236,19 @@ subtest "simple selector: pseudo-class" => sub {
     # XXX: only-of-type
     # XXX: nth-of-type
     # XXX: nth-last-of-type
+
+    test_csel(
+        expr   => ":has('TN1')",
+        nodes  => [$root],
+        result => [$root, $a2],
+    );
+
+    test_csel(
+        expr   => ":not('TN2')",
+        nodes  => [$root],
+        result => [$root, $a1, $a2, $b11, $b22, $b23],
+    );
+
 };
 
 #subtest "simple selector: attribute selector + pseudo-class" => sub {

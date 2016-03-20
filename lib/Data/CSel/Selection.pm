@@ -8,10 +8,14 @@ sub new {
     bless [@_], $class;
 }
 
-sub delete {
-}
+sub AUTOLOAD {
+    my $method = $AUTOLOAD;
+    $method =~ s/.*:://;
 
-sub closest {
+    my $self = shift;
+    for (@$self) {
+        $self->$method if $self->can($method);
+    }
 }
 
 1;

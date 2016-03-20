@@ -7,6 +7,8 @@ use 5.010001;
 use strict;
 use warnings;
 
+use Scalar::Util qw(refaddr);
+
 use Exporter qw(import);
 our @EXPORT_OK = qw(
                        csel
@@ -268,7 +270,7 @@ sub parse_csel {
 }
 
 sub _simpsel {
-    no warnings 'uninitialized';
+    no warnings 'numeric', 'uninitialized';
 
     my ($opts, $simpsel, $is_recursive, $res_set, @nodes) = @_;
 
@@ -357,6 +359,34 @@ sub _simpsel {
     }
 }
 
+sub _little_siblings {
+    my $node = shift;
+    my $parent = $node->parent or return ();
+    my $refaddr = refaddr($node);
+    my @children = $parent->children;
+    @children = @{$children[0]} if @children==1 && ref($children[0]) eq 'ARRAY';
+    for my $i (0..$#children-1) {
+        if (refaddr($children[$i]) == $refaddr) {
+            return @children[$i+1 .. $#children];
+        }
+    }
+    ();
+}
+
+sub _adjacent_little_sibling {
+    my $node = shift;
+    my $parent = $node->parent or return undef;
+    my $refaddr = refaddr($node);
+    my @children = $parent->children;
+    @children = @{$children[0]} if @children==1 && ref($children[0]) eq 'ARRAY';
+    for my $i (0..$#children-1) {
+        if (refaddr($children[$i]) == $refaddr) {
+            return $children[$i+1];
+        }
+    }
+    undef;
+}
+
 sub _sel {
     my ($opts, $sel, @nodes) = @_;
 
@@ -372,9 +402,9 @@ sub _sel {
         } else {
             my $combinator = shift @simpsels;
             my $simpsel = shift @simpsels;
+            my @res = $res_set->as_list;
+            last unless @res;
             if ($combinator->{combinator} eq ' ') { # descendant
-                my @res = $res_set->as_list;
-                last unless @res;
                 my @all_children = map {
                     my @c = $_->children;
                     @c==1 && ref($c[0]) eq 'ARRAY' ? @{$c[0]} : @c;
@@ -382,14 +412,36 @@ sub _sel {
                 $res_set = Data::CSel::_ObjSet->new;
                 _simpsel($opts, $simpsel, 1, $res_set, @all_children);
             } elsif ($combinator->{combinator} eq '>') { # child
-                my @res = $res_set->as_list;
-                last unless @res;
                 my @all_children = map {
                     my @c = $_->children;
                     @c==1 && ref($c[0]) eq 'ARRAY' ? @{$c[0]} : @c;
                 } @res;
                 $res_set = Data::CSel::_ObjSet->new;
                 _simpsel($opts, $simpsel, 0, $res_set, @all_children);
+            } elsif ($combinator->{combinator} eq '~') { # sibling
+                my %mem;
+                my @all_little_siblings;
+                for my $node (@res) {
+                    for (_little_siblings($node)) {
+                        push @all_little_siblings, $_
+                            unless $mem{refaddr($_)}++;
+                    }
+                }
+                $res_set = Data::CSel::_ObjSet->new;
+                _simpsel($opts, $simpsel, 0, $res_set, @all_little_siblings);
+            } elsif ($combinator->{combinator} eq '+') { # adjacent sibling
+                my %mem;
+                my @all_adjacent_little_siblings;
+                for my $node (@res) {
+                    for (_adjacent_little_sibling($node)) {
+                        next unless defined;
+                        push @all_adjacent_little_siblings, $_
+                            unless $mem{refaddr($_)}++;
+                    }
+                }
+                $res_set = Data::CSel::_ObjSet->new;
+                _simpsel($opts, $simpsel, 0, $res_set,
+                         @all_adjacent_little_siblings);
             } else {
                 die "BUG: Unknown combinator '$combinator->{combinator}'";
             }

@@ -210,6 +210,18 @@ subtest "selector: combinator" => sub {
         nodes  => [$root],
         result => [$b23],
     );
+    test_csel(
+        name   => "sibling",
+        expr   => "TN2 ~ TN1",
+        nodes  => [$root],
+        result => [$b23],
+    );
+    test_csel(
+        name   => "adjacent sibling",
+        expr   => "TN + TN + TN",
+        nodes  => [$root],
+        result => [$b23],
+    );
 };
 
 #subtest "selectors: comma" => sub {

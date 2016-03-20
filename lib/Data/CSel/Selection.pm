@@ -21,6 +21,8 @@ sub AUTOLOAD {
 1;
 # ABSTRACT: Selection object
 
+=for Pod::Coverage .+
+
 =head1 DESCRIPTION
 
 A selection object holds zero or more nodes and lets you perform operations on

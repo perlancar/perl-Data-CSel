@@ -122,6 +122,20 @@ our $RE =
                           $^R->[0];
                       })
                   |
+                      \.((?&TYPE_NAME))
+                      (?{
+                          $^R->[1]{type}  = 'class_selector';
+                          $^R->[1]{class} = $^N;
+                          $^R;
+                      })
+                  |
+                      \#(\w+)
+                      (?{
+                          $^R->[1]{type} = 'id_selector';
+                          $^R->[1]{id}   = $^N;
+                          $^R;
+                      })
+                  |
                       (?&PSEUDOCLASS) # [[$^R, {}], [$pseudoclass]]
                       (?{
                           $^R->[0][1]{type}         = 'pseudoclass';
@@ -328,7 +342,7 @@ sub _node_is_first_of_type {
     my $parent = $node->parent;
     return 0 unless $parent;
     my $type = ref($node);
-    my @c = grep { $_->isa($type) } _node_children($parent);
+    my @c = grep { ref($_) eq $type } _node_children($parent);
     @c && refaddr($node) == refaddr($c[0]);
 }
 
@@ -337,7 +351,7 @@ sub _node_is_last_of_type {
     my $parent = $node->parent;
     return 0 unless $parent;
     my $type = ref($node);
-    my @c = grep { $_->isa($type) } _node_children($parent);
+    my @c = grep { ref($_) eq $type } _node_children($parent);
     @c && refaddr($node) == refaddr($c[-1]);
 }
 
@@ -346,7 +360,7 @@ sub _node_is_only_of_type {
     my $parent = $node->parent;
     return 0 unless $parent;
     my $type = ref($node);
-    my @c = grep { $_->isa($type) } _node_children($parent);
+    my @c = grep { ref($_) eq $type } _node_children($parent);
     @c == 1; # && refaddr($node) == refaddr($c[0]);
 }
 
@@ -355,7 +369,7 @@ sub _node_is_nth_of_type {
     my $parent = $node->parent;
     return 0 unless $parent;
     my $type = ref($node);
-    my @c = grep { $_->isa($type) } _node_children($parent);
+    my @c = grep { ref($_) eq $type } _node_children($parent);
     @c >= $n && refaddr($node) == refaddr($c[$n-1]);
 }
 
@@ -364,7 +378,7 @@ sub _node_is_nth_last_of_type {
     my $parent = $node->parent;
     return 0 unless $parent;
     my $type = ref($node);
-    my @c = grep { $_->isa($type) } _node_children($parent);
+    my @c = grep { ref($_) eq $type } _node_children($parent);
     @c >= $n && refaddr($node) == refaddr($c[-$n]);
 }
 
@@ -419,7 +433,7 @@ sub _simpsel {
     #say "D:   intermediate result (after walk): [".join(",",map {$_->{id}} @res)."]";
 
     unless ($simpsel->{type} eq '*') {
-        @res = grep { $_->isa($simpsel->{type}) } @res;
+        @res = grep { ref($_) eq $simpsel->{type} } @res;
     }
 
     @res = _uniq_objects(@res);
@@ -428,7 +442,11 @@ sub _simpsel {
     for my $f (@{ $simpsel->{filters} // [] }) {
         last unless @res;
 
-        if (defined (my $attr = $f->{attr})) {
+        my $type = $f->{type};
+
+        if ($type eq 'attr_selector') {
+
+            my $attr = $f->{attr};
             my $op  = $f->{op};
             my $opv = $f->{value};
 
@@ -516,9 +534,23 @@ sub _simpsel {
                 push @newres, $o;
             } # for each item
             @res = @newres;
-        } # attr filter
 
-        if (defined(my $pc = $f->{pseudoclass})) {
+        } elsif ($type eq 'class_selector') {
+
+            my $class = $f->{class};
+            @res = grep { $_->isa($class) } @res;
+
+        } elsif ($type eq 'id_selector') {
+
+            my $method = $opts->{id_method} // 'id';
+            my $id     = $f->{id};
+
+            @res = grep { $_->can($id_method) && $_->$id_method eq $id } @res;
+
+        } elsif ($type eq 'pseudoclass') {
+
+            my $pc = $f->{pseudoclass};
+
             if ($pc eq 'first') {
                 @res = ($res[0]);
             } elsif ($pc eq 'last') {
@@ -557,7 +589,8 @@ sub _simpsel {
             } else {
                 die "Unsupported pseudo-class '$pc'";
             }
-        } # pseudoclass filter
+
+        }
 
         #say "D:   intermediate result (after filter): [".join(",",map {$_->{id}} @res)."]";
     } # for each filter
@@ -665,10 +698,12 @@ F element descendant of an E element. C<< E > F >> means F element child of E
 element. C<E ~ F> means F element preceded by an E element. C<E + F> means F
 element immediately preceded by an E element.
 
-A I<simple selector> is either a type selector or universal selector followed
-immediately by zero or more attribute selectors or pseudo-classes, in any order.
-Type or universal selector is optional if there are at least one attribute
-selector or pseudo-class.
+A I<simple selector> is either a L<type selector|/"Type selector"> or
+L<universal selector|/"Universal selector"> followed immediately by zero or more
+L<attribute selectors|/"Attribute selector"> or L<Class selector|"/Class
+selector"> or L<ID selector|/"ID selector"> or
+L<pseudo-classes|"/Pseudo-class">, in any order. Type or universal selector is
+optional if there are at least one attribute selector or pseudo-class.
 
 =head2 Type selector
 
@@ -678,7 +713,8 @@ Example:
 
  My::Class
 
-will match any C<My::Class> object.
+will match any C<My::Class> object. Subclasses of C<My::Class> will I<not> be
+matched, use L<class selector|"/Class selector"> for that.
 
 =head2 Universal selector
 
@@ -701,19 +737,18 @@ The syntax is:
 C<[ATTR]> means to only select objects that have an attribute named C<ATTR>, for
 example:
 
- Any[length]
+ [length]
 
-means to select object of type (C<isa()>) C<Any> that responds to (C<can()>)
-C<length()>.
+means to select objects that respond to (C<can()>) C<length()>.
 
 Note: to select objects that do not have a specified attribute, you can use the
 C<:not> pseudo-class (see L</"Pseudo-class">), for example:
 
- Any:not([length])
+ :not('[length]')
 
-C<[ATTR]> means to only select objects that have an attribute named C<ATTR> that
-has value that matches the expression specified by operator C<OP> and operand
-C<LITERAL>.
+C<[ATTR OP LITERAL]> means to only select objects that have an attribute named
+C<ATTR> that has value that matches the expression specified by operator C<OP>
+and operand C<LITERAL>.
 
 =head3 Literal
 
@@ -985,14 +1020,44 @@ will select all Person objects where age is defined.
 
 =back
 
+=head2 Class selector
+
+A I<class selector> is a C<.> (dot) followed by Perl class/package name.
+
+ .CLASSNAME
+
+It selects all objects that C<isa()> a certain class. The difference with L<type
+selector|/"Type selector"> is that inheritance is observed. So:
+
+ .My::Class
+
+will match instances of C<My::Class> as well as subclasses of it.
+
+=head2 ID selector
+
+An I<ID selector> is a C<#> (hash) followed by an identifier:
+
+ #ID
+
+It is a special/shortcut form of attribute selector where the attribute is
+C<id> and the operator is C<=>:
+
+ [id = ID]
+
+The L<csel()/"FUNCTIONS"> function allows you to configure which attribute to
+use as the ID attribute, the default is C<id>.
+
 =head2 Pseudo-class
 
-A I<pseudo-class> filters objects based on some criteria, in the form of:
+A I<pseudo-class> is C<:> (colon) followed by pseudo-class name (a
+dash-separated word list), and optionally a list of arguments enclosed in
+parentheses.
 
- :NAME
- :NAME(ARG, ...)
+ :PSEUDOCLASSNAME
+ :PSEUDOCLASSNAME(ARG, ...)
 
-Supported pseudo-classes include:
+It filters result set based on some criteria. Currently supported pseudo-classes
+include:
 
 =over
 
@@ -1059,15 +1124,6 @@ Select only object that is the I<n>th last child of its parent.
 
 Since Perl package names are separated by C<::>, CSel allows it in type
 selector.
-
-=head3 No equivalent for CSS class and ID selectors
-
-I.e.:
-
- E.class
- E#id
-
-They are not used in CSel.
 
 =head3 Syntax of attribute selector is a bit different
 

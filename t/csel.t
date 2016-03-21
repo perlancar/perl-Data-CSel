@@ -13,6 +13,23 @@ use TN;
 use TN1;
 use TN2;
 
+my $tree = TN->new_from_struct({
+    id => 'root', _children => [
+        {id => 'a1', _children => [
+            {id => 'b11'},
+            {id => 'b12', _class=>'TN2'},
+            {id => 'b13', _class=>'TN2'},
+            {id => 'b14', _class=>'TN1'},
+            {id => 'b15', _class=>'TN'},
+        ]},
+        {id => 'a2', _children => [
+             {id => 'b21', _class=>'TN2', _children => [
+                 {id => 'c21', _class=>'TN1'},
+             ]},
+         ]},
+    ]},
+);
+
 my $root;
 my ($a1, $b11, $b12, $a2, $b21, $b22, $b23);
 {

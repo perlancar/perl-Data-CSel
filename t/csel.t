@@ -141,6 +141,12 @@ subtest "simple selector: attribute selector" => sub {
         result => [@m{qw/d1/}],
     );
     test_csel(
+        name   => 'op:eq (unquoted operand)',
+        expr   => "TN[id eq d1]",
+        nodes  => [$m{root}],
+        result => [@m{qw/d1/}],
+    );
+    test_csel(
         name   => 'op:= (str)',
         expr   => "[int1='a']",
         nodes  => [$m{root}],
@@ -405,6 +411,12 @@ subtest "simple selector: pseudo-class" => sub {
     );
     test_csel(
         expr   => ":not(':first-child')",
+        nodes  => [$n{root}],
+        result => [@n{qw/root a2 b12 b13 b14 b15/}],
+    );
+    test_csel(
+        name   => ":not (quote optional)",
+        expr   => ":not(:first-child)",
         nodes  => [$n{root}],
         result => [@n{qw/root a2 b12 b13 b14 b15/}],
     );

@@ -73,10 +73,19 @@ subtest "simple selector: attribute selector" => sub {
     );
     test_parse(
         name=>"whitespace allowed between attr name, operator, value",
-        expr=>"T[attr = 1]",
+        expr=>"T[attr = 'str']",
         res=>[
             [{type=>"T", filters=>[
-                {type=>"attr_selector", attr=>"attr", op=>"=", value=>1},
+                {type=>"attr_selector", attr=>"attr", op=>"=", value=>'str'},
+            ]}],
+        ],
+    );
+    test_parse(
+        name=>"string value is optional",
+        expr=>"T[attr = str ]",
+        res=>[
+            [{type=>"T", filters=>[
+                {type=>"attr_selector", attr=>"attr", op=>"=", value=>'str'},
             ]}],
         ],
     );
@@ -106,6 +115,24 @@ subtest "simple selector: pseudo-class" => sub {
         res=>[
             [{type=>"T", filters=>[
                 {type=>"pseudoclass", pseudoclass=>"foo", args=>[1, "a"]},
+            ]}],
+        ],
+    );
+    test_parse(
+        name => 'has() selector argument needs not be quoted',
+        expr=>":has(:foo(1))",
+        res=>[
+            [{type=>"*", filters=>[
+                {type=>"pseudoclass", pseudoclass=>"has", args=>[':foo(1)']},
+            ]}],
+        ],
+    );
+    test_parse(
+        name => 'not() selector argument needs not be quoted',
+        expr=>":not(:foo(1))",
+        res=>[
+            [{type=>"*", filters=>[
+                {type=>"pseudoclass", pseudoclass=>"not", args=>[':foo(1)']},
             ]}],
         ],
     );

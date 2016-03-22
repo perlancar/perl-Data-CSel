@@ -137,29 +137,13 @@ our $RE =
                           $^R;
                       })
                   |
-                      (?&PSEUDOCLASS) # [[$^R, {}], [$pseudoclass]]
+                      (?&PSEUDOCLASS) # [[$^R, {}], [$pseudoclass, \@args]]
                       (?{
                           $^R->[0][1]{type}         = 'pseudoclass';
                           $^R->[0][1]{pseudoclass}  = $^R->[1][0];
+                          $^R->[0][1]{args}         = $^R->[1][1] if @{ $^R->[1] } > 1;
                           $^R->[0];
                       })
-                      (?:
-                          \(\s*
-                          (?&LITERAL)
-                          (?{
-                              push @{ $^R->[0][1]{args} }, $^R->[1];
-                              $^R->[0];
-                          })
-                          (?:
-                              \s*,\s*
-                              (?&LITERAL)
-                              (?{
-                                  push @{ $^R->[0][1]{args} }, $^R->[1];
-                                  $^R->[0];
-                              })
-                          )*
-                          \s*\)
-                      )?
                   )
               )
 
@@ -184,11 +168,19 @@ our $RE =
                       $^R;
                   })
 
-                  ((?&LITERAL)) # [[$^R, [$attr, $op]], $literal]
-                  (?{
-                      push @{ $^R->[0][1] }, $^R->[1];
-                      $^R->[0];
-                  })
+                  (?:
+                      ((?&LITERAL)) # [[$^R, [$attr, $op]], $literal]
+                      (?{
+                          push @{ $^R->[0][1] }, $^R->[1];
+                          $^R->[0];
+                      })
+                  |
+                      (\w[^\s\]]*) # allow unquoted string
+                      (?{
+                          push @{ $^R->[1] }, $^N;
+                          $^R;
+                      })
+                  )
                   \s*\]
               )
 
@@ -271,8 +263,50 @@ our $RE =
               )
 
               (?<PSEUDOCLASS>
-                  :((?&PSEUDOCLASS_NAME))
-                  (?{ [$^R, [$^N]] })
+                  :
+                  (?:
+                      (?:
+                          (has|not)
+                          (?{ [$^R, [$^N]] })
+                          \(\s*
+                          (?:
+                              (?&LITERAL)
+                              (?{
+                                  push @{ $^R->[0][1][1] }, $^R->[1];
+                                  $^R->[0];
+                              })
+                          |
+                              ((?&SELECTORS))
+                              (?{
+                                  push @{ $^R->[0][1][1] }, $^N;
+                                  $^R->[0];
+                              })
+                          )
+                          \s*\)
+                      )
+                  |
+                      (?:
+                          ((?&PSEUDOCLASS_NAME))
+                          (?{ [$^R, [$^N]] })
+                          (?:
+                              \(\s*
+                              (?&LITERAL)
+                              (?{
+                                  push @{ $^R->[0][1][1] }, $^R->[1];
+                                  $^R->[0];
+                              })
+                              (?:
+                                  \s*,\s*
+                                  (?&LITERAL)
+                                  (?{
+                                      push @{ $^R->[0][1][1] }, $^R->[1];
+                                      $^R->[0];
+                                  })
+                              )*
+                              \s*\)
+                          )?
+                      )
+                  )
               )
           ) # DEFINE
   }x;
@@ -626,7 +660,7 @@ means to select objects that respond to (C<can()>) C<length()>.
 Note: to select objects that do not have a specified attribute, you can use the
 C<:not> pseudo-class (see L</"Pseudo-class">), for example:
 
- :not('[length]')
+ :not([length])
 
 C<[ATTR OP LITERAL]> means to only select objects that have an attribute named
 C<ATTR> that has value that matches the expression specified by operator C<OP>
@@ -634,38 +668,48 @@ and operand C<LITERAL>.
 
 =head3 Literal
 
-Literals can either be a number, e.g.:
+There are several kinds of literals supported.
+
+B<Numbers>. Examples:
 
  1
  -2.3
  4.5e-6
 
-or boolean literals:
+B<Boolean>:
 
  true
  false
 
-or null (undef) literal:
+B<Null (undef)>:
 
  null
 
-or a single-quoted string (only recognizes the escape sequences C<\\> and
+B<String>. Either single-quoted (only recognizes the escape sequences C<\\> and
 C<\'>):
 
  'this is a string'
  'this isn\'t hard'
 
-or a double-quoted string (currently recognizes the escape sequences C<\\>,
-C<\">, C<\'>, C<\$> [literal $], C<\t> [tab character], C<\n> [newline], C<\r>
-[linefeed], C<\f> [formfeed], C<\b> [backspace], C<\a> [bell], C<\e> [escape],
-C<\0> [null], octal escape e.g. C<\033>, hexadecimal escape e.g. C<\x1b>):
+or double-quoted (currently recognizes the escape sequences C<\\>, C<\">, C<\'>,
+C<\$> [literal $], C<\t> [tab character], C<\n> [newline], C<\r> [linefeed],
+C<\f> [formfeed], C<\b> [backspace], C<\a> [bell], C<\e> [escape], C<\0> [null],
+octal escape e.g. C<\033>, hexadecimal escape e.g. C<\x1b>):
 
  "This is a string"
  "This isn't hard"
  "Line 1\nLine 2"
 
-or a regex string (must be delimited by C</> ... C</>, can be followed by zero
-of more regex modifier characters m, s, i):
+For convenience, a word string can be unquoted in expression, e.g.:
+
+ [name = ujang]
+
+is equivalent to:
+
+ [name = 'ujang']
+
+B<Regex literal>. Must be delimited by C</> ... C</>, can be followed by zero of
+more regex modifier characters m, s, i):
 
  //
  /ab(c|d)/i
@@ -1020,11 +1064,27 @@ Select only leaf node(s).
 
 =item * C<:not(S)>
 
-Select all objects not matching selector C<S>.
+Select all objects not matching selector C<S>. C<S> can be a string or an
+unquoted CSel expression.
+
+Example:
+
+ :not('.My::Class')
+ :not(.My::Class)
+
+will select all objects that are not of C<My::Class> type.
 
 =item * C<:has(S)>
 
-Select all objects that have a descendant matching selector C<S>.
+Select all objects that have a descendant matching selector C<S>. C<S> can be a
+string or an unquoted CSel expression.
+
+Example:
+
+ :has('T')
+ :not(T)
+
+will select all objects that have a descendant of type C<T>.
 
 =back
 
@@ -1046,22 +1106,10 @@ C<[attr^=val]>, C<[attr$=val]>, C<[attr*=val]>, C<[attr~=val]>, and
 C<[attr|=val]> are replaced with the more flexible regex matching instead
 C<[attr =~ /re/]>.
 
-String must always be quoted, e.g.:
-
- p[align="middle"]
- p[align='middle']
-
-instead of just:
-
- p[align=middle]
-
 =head3 Different pseudo-classes supported
 
 Some CSS pseudo-classes only make sense for a DOM or a visual browser, e.g.
 C<:link>, C<:visited>, C<:hover>, so they are not supported.
-
-C<:has(p)> and C<:not(p)> needs quoted value. In CSel, C<p> is a regular string
-literal and must be quoted.
 
 =head3 There is no concept of CSS namespaces
 

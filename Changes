@@ -15,6 +15,8 @@ Revision history for Data-CSel
            attribute/class/ID selector or pseudo-classes, like in CSS selector
            syntax.
 
+         - Allow <> inequality operator in addition to !=.
+
 
 0.01     2016-03-20 (PERLANCAR)
 

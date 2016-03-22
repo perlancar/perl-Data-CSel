@@ -7,6 +7,7 @@ use 5.010001;
 use strict;
 use warnings;
 
+use Code::Includable::Tree::NodeMethods;
 #use List::Util qw(first);
 use Scalar::Util qw(refaddr looks_like_number);
 
@@ -172,7 +173,7 @@ our $RE =
 
                   (
                       \s*(?:=~|!~)\s* |
-                      \s*(?:!=|>=?|<=?|==?)\s* |
+                      \s*(?:!=|<>|>=?|<=?|==?)\s* |
                       \s+(?:eq|ne|lt|gt|le|ge)\s+ |
                       \s+(?:isnt|is)\s+
                   )
@@ -284,130 +285,6 @@ sub parse_csel {
     return undef;
 }
 
-sub _node_children {
-    my $node = shift;
-    my @c = $node->children;
-    @c = @{$c[0]} if @c==1 && ref($c[0]) eq 'ARRAY';
-    @c;
-}
-
-sub _node_descendants {
-    my $node = shift;
-    my @c = _node_children($node);
-    (@c, map { _node_descendants($_) } _node_children($node));
-}
-
-sub _node_is_first_child {
-    my $node = shift;
-    my $parent = $node->parent;
-    return 0 unless $parent;
-    my @c = _node_children($parent);
-    @c && refaddr($node) == refaddr($c[0]);
-}
-
-sub _node_is_last_child {
-    my $node = shift;
-    my $parent = $node->parent;
-    return 0 unless $parent;
-    my @c = _node_children($parent);
-    @c && refaddr($node) == refaddr($c[-1]);
-}
-
-sub _node_is_only_child {
-    my $node = shift;
-    my $parent = $node->parent;
-    return 0 unless $parent;
-    my @c = _node_children($parent);
-    @c==1;# && refaddr($node) == refaddr($c[0]);
-}
-
-sub _node_is_nth_child {
-    my ($node, $n) = @_;
-    my $parent = $node->parent;
-    return 0 unless $parent;
-    my @c = _node_children($parent);
-    @c >= $n && refaddr($node) == refaddr($c[$n-1]);
-}
-
-sub _node_is_nth_last_child {
-    my ($node, $n) = @_;
-    my $parent = $node->parent;
-    return 0 unless $parent;
-    my @c = _node_children($parent);
-    @c >= $n && refaddr($node) == refaddr($c[-$n]);
-}
-
-sub _node_is_first_of_type {
-    my $node = shift;
-    my $parent = $node->parent;
-    return 0 unless $parent;
-    my $type = ref($node);
-    my @c = grep { ref($_) eq $type } _node_children($parent);
-    @c && refaddr($node) == refaddr($c[0]);
-}
-
-sub _node_is_last_of_type {
-    my $node = shift;
-    my $parent = $node->parent;
-    return 0 unless $parent;
-    my $type = ref($node);
-    my @c = grep { ref($_) eq $type } _node_children($parent);
-    @c && refaddr($node) == refaddr($c[-1]);
-}
-
-sub _node_is_only_of_type {
-    my $node = shift;
-    my $parent = $node->parent;
-    return 0 unless $parent;
-    my $type = ref($node);
-    my @c = grep { ref($_) eq $type } _node_children($parent);
-    @c == 1; # && refaddr($node) == refaddr($c[0]);
-}
-
-sub _node_is_nth_of_type {
-    my ($node, $n) = @_;
-    my $parent = $node->parent;
-    return 0 unless $parent;
-    my $type = ref($node);
-    my @c = grep { ref($_) eq $type } _node_children($parent);
-    @c >= $n && refaddr($node) == refaddr($c[$n-1]);
-}
-
-sub _node_is_nth_last_of_type {
-    my ($node, $n) = @_;
-    my $parent = $node->parent;
-    return 0 unless $parent;
-    my $type = ref($node);
-    my @c = grep { ref($_) eq $type } _node_children($parent);
-    @c >= $n && refaddr($node) == refaddr($c[-$n]);
-}
-
-sub _node_little_siblings {
-    my $node = shift;
-    my $parent = $node->parent or return ();
-    my $refaddr = refaddr($node);
-    my @children = _node_children($parent);
-    for my $i (0..$#children-1) {
-        if (refaddr($children[$i]) == $refaddr) {
-            return @children[$i+1 .. $#children];
-        }
-    }
-    ();
-}
-
-sub _node_adjacent_little_sibling {
-    my $node = shift;
-    my $parent = $node->parent or return undef;
-    my $refaddr = refaddr($node);
-    my @children = _node_children($parent);
-    for my $i (0..$#children-1) {
-        if (refaddr($children[$i]) == $refaddr) {
-            return $children[$i+1];
-        }
-    }
-    undef;
-}
-
 sub _uniq_objects {
     my @uniq;
     my %mem;
@@ -426,7 +303,7 @@ sub _simpsel {
 
     my @res;
     if ($is_recursive) {
-        @res = (@nodes, map {_node_descendants($_)} @nodes);
+        @res = (@nodes, map {Code::Includable::Tree::NodeMethods::descendants($_)} @nodes);
     } else {
         @res = @nodes;
     }
@@ -453,8 +330,8 @@ sub _simpsel {
             my @newres;
           ITEM:
             for my $o (@res) {
-                next ITEM unless $o->can($f->{attr}) ||
-                    $o->can('AUTOLOAD');
+                next ITEM unless $o->can($f->{attr});
+                goto PASS unless $op;
 
                 my $val = $o->$attr;
                 if ($op eq '=' || $op eq '==') {
@@ -465,7 +342,7 @@ sub _simpsel {
                     }
                 } elsif ($op eq 'eq') {
                     next ITEM unless $val eq $opv;
-                } elsif ($op eq '!=') {
+                } elsif ($op eq '!=' || $op eq '<>') {
                     if (looks_like_number($opv)) {
                         next ITEM unless $val != $opv;
                     } else {
@@ -485,7 +362,7 @@ sub _simpsel {
                     if (looks_like_number($opv)) {
                         next ITEM unless $val >=  $opv;
                     } else {
-                        next ITEM unless $val gt $opv;
+                        next ITEM unless $val ge $opv;
                     }
                 } elsif ($op eq 'ge') {
                     next ITEM unless $val ge $opv;
@@ -529,6 +406,7 @@ sub _simpsel {
                     die "BUG: Unsupported operator '$op' in attr_selector";
                 }
 
+              PASS:
                 # pass all attribute filters, add to new result
                 #say "D:    adding to result: ".$o->{id};
                 push @newres, $o;
@@ -545,7 +423,7 @@ sub _simpsel {
             my $method = $opts->{id_method} // 'id';
             my $id     = $f->{id};
 
-            @res = grep { $_->can($id_method) && $_->$id_method eq $id } @res;
+            @res = grep { $_->can($method) && $_->$method eq $id } @res;
 
         } elsif ($type eq 'pseudoclass') {
 
@@ -556,25 +434,25 @@ sub _simpsel {
             } elsif ($pc eq 'last') {
                 @res = ($res[-1]);
             } elsif ($pc eq 'first-child') {
-                @res = grep { _node_is_first_child($_) } @res;
+                @res = grep { Code::Includable::Tree::NodeMethods::is_first_child($_) } @res;
             } elsif ($pc eq 'last-child') {
-                @res = grep { _node_is_last_child($_) } @res;
+                @res = grep { Code::Includable::Tree::NodeMethods::is_last_child($_) } @res;
             } elsif ($pc eq 'only-child') {
-                @res = grep { _node_is_only_child($_) } @res;
+                @res = grep { Code::Includable::Tree::NodeMethods::is_only_child($_) } @res;
             } elsif ($pc eq 'nth-child') {
-                @res = grep { _node_is_nth_child($_, $f->{args}[0]) } @res;
+                @res = grep { Code::Includable::Tree::NodeMethods::is_nth_child($_, $f->{args}[0]) } @res;
             } elsif ($pc eq 'nth-last-child') {
-                @res = grep { _node_is_nth_last_child($_, $f->{args}[0]) } @res;
+                @res = grep { Code::Includable::Tree::NodeMethods::is_nth_last_child($_, $f->{args}[0]) } @res;
             } elsif ($pc eq 'first-of-type') {
-                @res = grep { _node_is_first_of_type($_) } @res;
+                @res = grep { Code::Includable::Tree::NodeMethods::is_first_child_of_type($_) } @res;
             } elsif ($pc eq 'last-of-type') {
-                @res = grep { _node_is_last_of_type($_) } @res;
+                @res = grep { Code::Includable::Tree::NodeMethods::is_last_child_of_type($_) } @res;
             } elsif ($pc eq 'only-of-type') {
-                @res = grep { _node_is_only_of_type($_) } @res;
+                @res = grep { Code::Includable::Tree::NodeMethods::is_only_child_of_type($_) } @res;
             } elsif ($pc eq 'nth-of-type') {
-                @res = grep { _node_is_nth_of_type($_, $f->{args}[0]) } @res;
+                @res = grep { Code::Includable::Tree::NodeMethods::is_nth_child_of_type($_, $f->{args}[0]) } @res;
             } elsif ($pc eq 'nth-last-of-type') {
-                @res = grep { _node_is_nth_last_of_type($_, $f->{args}[0]) } @res;
+                @res = grep { Code::Includable::Tree::NodeMethods::is_nth_last_child_of_type($_, $f->{args}[0]) } @res;
             } elsif ($pc eq 'has') {
                 @res = grep { csel($opts, $f->{args}[0], $_) }
                     _uniq_objects(
@@ -614,17 +492,17 @@ sub _sel {
             last unless @res;
             if ($combinator->{combinator} eq ' ') { # descendant
                 @res = _simpsel($opts, $simpsel, 1,
-                                map { _node_children($_) } @res);
+                                map { Code::Includable::Tree::NodeMethods::_children_as_list($_) } @res);
             } elsif ($combinator->{combinator} eq '>') { # child
                 @res = _simpsel($opts, $simpsel, 0,
-                                map { _node_children($_) } @res);
+                                map { Code::Includable::Tree::NodeMethods::_children_as_list($_) } @res);
             } elsif ($combinator->{combinator} eq '~') { # sibling
                 @res = _simpsel($opts, $simpsel, 0,
-                                map { _node_little_siblings($_) } @res);
+                                map { Code::Includable::Tree::NodeMethods::next_siblings($_) } @res);
             } elsif ($combinator->{combinator} eq '+') { # adjacent sibling
                 @res = _simpsel($opts, $simpsel, 0,
                                 grep {defined}
-                                    map { _node_adjacent_little_sibling($_) }
+                                    map { Code::Includable::Tree::NodeMethods::next_sibling($_) }
                                     @res);
             } else {
                 die "BUG: Unknown combinator '$combinator->{combinator}'";
@@ -664,7 +542,7 @@ sub csel {
 
  use Data::CSel qw(csel);
 
- my @cells = csel("Table[name=~/data/i] TCell[value isnt '']:first", $tree);
+ my @cells = csel("Table[name=~/data/i] TCell[value != '']:first", $tree);
 
  # ditto, but wrap result using a Data::CSel::Selection
  my $res = csel({wrap=>1}, "Table ...", $tree);
@@ -703,7 +581,7 @@ L<universal selector|/"Universal selector"> followed immediately by zero or more
 L<attribute selectors|/"Attribute selector"> or L<Class selector|"/Class
 selector"> or L<ID selector|/"ID selector"> or
 L<pseudo-classes|"/Pseudo-class">, in any order. Type or universal selector is
-optional if there are at least one attribute selector or pseudo-class.
+optional if there is at least one attribute selector or pseudo-class.
 
 =head2 Type selector
 
@@ -834,13 +712,14 @@ Example:
 selects all C<Table> objects that have C<title()> with the value not equal to
 C<"TOC">.
 
-=item * C<!=>
+=item * C<!=> (or C<< <> >>)
 
 Numerical inequality using Perl's C<!=> operator.
 
 Example:
 
  TableCell[length != 3]
+ TableCell[length <> 3]
 
 selects all C<TableCell> objects that have C<length()> with the value not equal
 to 3.
@@ -1154,7 +1033,9 @@ literal and must be quoted.
 
 =head3 There is no concept of CSS namespaces
 
-But Perl package names are already hierarchical.
+CSS namespaces are used when there are foreign elements (e.g. SVG in addition to
+HTML) and one wants to use the same stylesheet for both. There is no need for
+something like this CSel, as we deal with only Perl objects.
 
 
 =head1 FUNCTIONS

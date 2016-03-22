@@ -1,5 +1,12 @@
 Revision history for Data-CSel
 
+0.03    2016-03-23 (PERLANCAR)
+
+	- [ux] Word string value in attribute selector, and selector
+	  argument for pseudo-classes :has & :not can be unquoted, for
+	  convenience (like in CSS selector).
+
+
 0.02     2016-03-22 (PERLANCAR)
 
          This release improves "compatibility" with CSS selector.

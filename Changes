@@ -1,6 +1,6 @@
 Revision history for Data-CSel
 
-0.02     2016-03-22 (PERLANCAR) (unreleased)
+0.02     2016-03-22 (PERLANCAR)
 
          This release improves "compatibility" with CSS selector.
 
@@ -16,6 +16,8 @@ Revision history for Data-CSel
            syntax.
 
          - Allow <> inequality operator in addition to !=.
+
+         - Add pseudo-classes: :root & :empty.
 
 
 0.01     2016-03-20 (PERLANCAR)

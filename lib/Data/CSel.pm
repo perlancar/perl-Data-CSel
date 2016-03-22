@@ -453,6 +453,10 @@ sub _simpsel {
                 @res = grep { Code::Includable::Tree::NodeMethods::is_nth_child_of_type($_, $f->{args}[0]) } @res;
             } elsif ($pc eq 'nth-last-of-type') {
                 @res = grep { Code::Includable::Tree::NodeMethods::is_nth_last_child_of_type($_, $f->{args}[0]) } @res;
+            } elsif ($pc eq 'root') {
+                @res = grep { !$_->parent } @res;
+            } elsif ($pc eq 'empty') {
+                @res = grep { my @c = Code::Includable::Tree::NodeMethods::_children_as_list($_); !@c } @res;
             } elsif ($pc eq 'has') {
                 @res = grep { csel($opts, $f->{args}[0], $_) }
                     _uniq_objects(
@@ -962,37 +966,65 @@ selects the last person whose name starts with the letter C<A>.
 
 =item * C<:first-child>
 
-Select only object that is the first child of its parent.
+Select only objects that are the first child of their parent.
 
 =item * C<:last-child>
 
-Select only object that is the last child of its parent.
+Select only objects that are the last child of their parent.
 
 =item * C<:only-child>
 
-Select only object that is the only child of its parent.
+Select only objects that is the only child of their parent.
 
 =item * C<:nth-child(n)>
 
-Select only object that is the I<n>th child of its parent.
+Select only objects that are the I<n>th child of their parent.
 
 =item * C<:nth-last-child(n)>
 
-Select only object that is the I<n>th last child of its parent.
+Select only objects that are the I<n>th last child of their parent.
 
 =item * C<:first-of-type>
 
+Select only objects that are the first child of their parent of their type. So
+if a parent's children is:
+
+ id1(type=T1) id2(T2) id3(T2)
+
+then both C<id1> and C<id2> are first children of their respective types.
+
 =item * C<:last-of-type>
+
+Select only objects that are the last child of their parent of their type.
 
 =item * C<:only-of-type>
 
+Select only objects that are the only child of their parent of their type.
+
 =item * C<:nth-of-type(n)>
+
+Select only objects that are the I<n>th child of their parent of their type.
 
 =item * C<:nth-last-of-type(n)>
 
-=item * C<:not(s)>
+Select only objects that are the I<n>th last child of their parent of their
+type.
 
-=item * C<:has(s)>
+=item * C<:root>
+
+Select only root node(s).
+
+=item * C<:empty>
+
+Select only leaf node(s).
+
+=item * C<:not(S)>
+
+Select all objects not matching selector C<S>.
+
+=item * C<:has(S)>
+
+Select all objects that have a descendant matching selector C<S>.
 
 =back
 
@@ -1052,7 +1084,8 @@ A tree node object is any regular Perl object satisfying the following criteria:
 1) it supports a C<parent> method which should return a single parent node
 object, or undef if object is the root node); 2) it supports a C<children>
 method which should return a list (or an arrayref) of children node objects
-(where the list/array will be empty for a leaf node).
+(where the list/array will be empty for a leaf node). Note: you can use
+L<Role::TinyCommons::Tree::Node> to enforce this requirement.
 
 Known options:
 

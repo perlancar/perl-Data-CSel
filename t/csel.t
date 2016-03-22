@@ -382,6 +382,23 @@ subtest "simple selector: pseudo-class" => sub {
     );
 
     test_csel(
+        expr   => ":root",
+        nodes  => [$n{root}],
+        result => [@n{qw/root/}],
+    );
+    test_csel(
+        expr   => ":root",
+        nodes  => [$n{a1}],
+        result => [@n{qw//}],
+    );
+
+    test_csel(
+        expr   => ":empty",
+        nodes  => [$n{root}],
+        result => [@n{qw/b11 b12 b13 b14 b15 c211/}],
+    );
+
+    test_csel(
         expr   => ":has('TN1')",
         nodes  => [$n{root}],
         result => [@n{qw/root a1 a2 b21/}],

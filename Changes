@@ -1,5 +1,21 @@
 Revision history for Data-CSel
 
+0.02     2016-03-22 (PERLANCAR) (unreleased)
+
+         This release improves "compatibility" with CSS selector.
+
+         - [Incompatible change] Type selector no longer uses isa() but string
+           comparison of class name. This means the expression 'T' only matches
+           objects of class T and not subclasses of T. To match subclasses, use
+           the newly implemented class selector.
+
+         - Implement class (.CLASS) and ID selector (#ID).
+
+         - Type or universal selector is optional if there is at least one
+           attribute/class/ID selector or pseudo-classes, like in CSS selector
+           syntax.
+
+
 0.01     2016-03-20 (PERLANCAR)
 
          - First release.

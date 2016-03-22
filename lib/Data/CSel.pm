@@ -614,12 +614,12 @@ F element descendant of an E element. C<< E > F >> means F element child of E
 element. C<E ~ F> means F element preceded by an E element. C<E + F> means F
 element immediately preceded by an E element.
 
-A I<simple selector> is either a L<type selector|/"Type selector"> or
-L<universal selector|/"Universal selector"> followed immediately by zero or more
-L<attribute selectors|/"Attribute selector"> or L<Class selector|"/Class
-selector"> or L<ID selector|/"ID selector"> or
-L<pseudo-classes|"/Pseudo-class">, in any order. Type or universal selector is
-optional if there is at least one attribute selector or pseudo-class.
+A I<simple selector> is either a type selector (see L</"Type selector">) or
+universal selector (see L</"Universal selector">) followed immediately by zero
+or more attribute selectors (see L</"Attribute selector"> or class selector (see
+L<"/Class selector">) or ID selector (see L</"ID selector">) or pseudo-classes
+(see L<"/Pseudo-class">), in any order. Type or universal selector is optional
+if there is at least one attribute selector or pseudo-class.
 
 =head2 Type selector
 
@@ -953,8 +953,8 @@ A I<class selector> is a C<.> (dot) followed by Perl class/package name.
 
  .CLASSNAME
 
-It selects all objects that C<isa()> a certain class. The difference with L<type
-selector|/"Type selector"> is that inheritance is observed. So:
+It selects all objects that C<isa()> a certain class. The difference with type
+selector is that inheritance is observed. So:
 
  .My::Class
 
@@ -971,8 +971,8 @@ C<id> and the operator is C<=>:
 
  [id = ID]
 
-The L<csel()/"FUNCTIONS"> function allows you to configure which attribute to
-use as the ID attribute, the default is C<id>.
+The C<csel()> function allows you to configure which attribute to use as the ID
+attribute, the default is C<id>.
 
 =head2 Pseudo-class
 

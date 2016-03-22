@@ -19,6 +19,9 @@ Revision history for Data-CSel
 
          - Add pseudo-classes: :root & :empty.
 
+         - [Internal] Reuse methods from Class::Includable::Tree::NodeMethods to
+           avoid code duplication.
+
 
 0.01     2016-03-20 (PERLANCAR)
 

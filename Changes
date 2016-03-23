@@ -1,5 +1,15 @@
 Revision history for Data-CSel
 
+0.04    2016-03-23 (PERLANCAR)
+
+	- Introduce option: class_prefixes.
+
+	- csel(): Die on expression parse error.
+
+	- POD formatting, L<blah|/Section> links are not always properly
+	  rendered in metacpan.org.
+
+
 0.03    2016-03-23 (PERLANCAR)
 
 	- [ux] Word string value in attribute selector, and selector

@@ -344,7 +344,25 @@ sub _simpsel {
     #say "D:   intermediate result (after walk): [".join(",",map {$_->{id}} @res)."]";
 
     unless ($simpsel->{type} eq '*') {
-        @res = grep { ref($_) eq $simpsel->{type} } @res;
+        my @fres;
+
+        my @types_to_match;
+        for (@{ $opts->{class_prefixes} // [] }) {
+            push @types_to_match, $_ . (/::$/ ? "" : "::") . $simpsel->{type};
+        }
+        push @types_to_match, $simpsel->{type};
+
+      ELEM:
+        for my $o (@res) {
+            my $ref = ref($o);
+            for (@types_to_match) {
+                if ($ref eq $_) {
+                    push @fres, $o;
+                    next ELEM;
+                }
+            }
+        }
+        @res = @fres;
     }
 
     @res = _uniq_objects(@res);
@@ -1139,6 +1157,16 @@ L<Role::TinyCommons::Tree::Node> to enforce this requirement.
 Known options:
 
 =over
+
+=item * class_prefixes => array of str
+
+Array of namespace to check when matching type in type selector as well as class
+selector. This is like PATH environment variable in Unix shell. For example, if
+C<class_prefixes> is C<< ["Foo::Bar", "Baz"] >>, then this expression:
+
+ T
+
+will match class C<Foo::Bar::T>, or C<Baz::T>, or C<T>.
 
 =item * wrap => bool
 

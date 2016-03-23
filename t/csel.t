@@ -8,6 +8,7 @@ use FindBin '$Bin';
 use lib "$Bin/lib";
 
 use Data::CSel qw(csel);
+use Prefix::TN2;
 use Test::More 0.98;
 use TN;
 use TN1;
@@ -454,6 +455,31 @@ subtest "selectors: comma" => sub {
         expr   => "TN1, TN2",
         nodes  => [$n{root}],
         result => [@n{qw/b14 c211 b12 b13 b21/}],
+    );
+};
+
+subtest "option: class_prefixes" => sub {
+    my $tree = TN->new_from_struct({
+        id => 'root', _children => [
+            {id => 'a1', _class => 'Prefix::TN2'},
+            {id => 'a2', _class => 'TN2'},
+            {id => 'a3', _class => 'TN'},
+        ]},
+    );
+    my %n; # nodes, key=id, val=obj
+    $tree->walk(sub { $n{$_[0]{id}} = $_ });
+    $n{root} = $tree;
+
+    test_csel(
+        expr   => "TN2",
+        nodes  => [$n{root}],
+        result => [@n{qw/a2/}],
+    );
+    test_csel(
+        expr   => "TN2",
+        opts   => {class_prefixes=>['Prefix']},
+        nodes  => [$n{root}],
+        result => [@n{qw/a1 a2/}],
     );
 };
 

@@ -562,6 +562,7 @@ sub csel {
     my @nodes = @_;
 
     my $pexpr = parse_csel($expr);
+    $pexpr or die "Invalid CSel expression '$expr'";
 
     my @res = _uniq_objects(map { _sel($opts, $_, @nodes) } @$pexpr );
 

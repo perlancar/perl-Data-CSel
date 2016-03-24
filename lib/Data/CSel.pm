@@ -312,9 +312,11 @@ our $RE =
   }x;
 
 sub parse_csel {
+    state $re = qr{\A\s*$RE\s*\z};
+
     local $_ = shift;
     local $^R;
-    eval { m{\A\s*$RE\s*\z}; } and return $_;
+    eval { $_ =~ $re } and return $_;
     die $@ if $@;
     return undef;
 }

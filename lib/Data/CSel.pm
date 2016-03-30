@@ -512,16 +512,19 @@ sub _simpsel {
             } elsif ($pc eq 'empty') {
                 @res = grep { my @c = Code::Includable::Tree::NodeMethods::_children_as_list($_); !@c } @res;
             } elsif ($pc eq 'has') {
-                @res = grep { csel($opts, $f->{args}[0], $_) }
+                @res = csel(
+                    $opts, $f->{args}[0],
                     _uniq_objects(
-                        grep {defined} map { $_->parent } @res);
+                        (map { Code::Includable::Tree::NodeMethods::ancestors($_) } @res)
+                    ),
+                );
             } elsif ($pc eq 'not') {
                 #say "D: res=(".join(",", map {$_->{id}} @res).")";
-                my @all_matches = map { csel($opts, $f->{args}[0], $_) } @res;
+                my @matches = csel($opts, $f->{args}[0], @res);
                 #say "D: all_matches=(".join(",", map {$_->{id}} @all_matches).")";
-                my %all_matches_refaddrs;
-                for (@all_matches) { $all_matches_refaddrs{refaddr($_)}++ }
-                @res = grep { !$all_matches_refaddrs{refaddr($_)} } @res;
+                my %matches_refaddrs;
+                for (@matches) { $matches_refaddrs{refaddr($_)}++ }
+                @res = grep { !$matches_refaddrs{refaddr($_)} } @res;
             } else {
                 die "Unsupported pseudo-class '$pc'";
             }

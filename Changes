@@ -1,5 +1,13 @@
 Revision history for Data-CSel
 
+0.06    2016-04-02 (PERLANCAR)
+
+	- [Bugfix] Bump prereq version Code::Includable::Tree::NodeMethods
+	  to 0.09 where ancestors() starts to appear.
+
+	- [Bugfix] Parser fix: regex literal was too eager.
+
+
 0.05    2016-04-01 (PERLANCAR)
 
 	- [Optimization] Make :has and :not more efficient/less stupid.

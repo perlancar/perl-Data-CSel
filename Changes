@@ -1,5 +1,12 @@
 Revision history for Data-CSel
 
+0.05    2016-04-01 (PERLANCAR)
+
+	- [Optimization] Make :has and :not more efficient/less stupid.
+
+	- [Optimization] Don't repeatedly recompile main regex pattern.
+
+
 0.04    2016-03-23 (PERLANCAR)
 
 	- Introduce option: class_prefixes.

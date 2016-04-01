@@ -512,12 +512,10 @@ sub _simpsel {
             } elsif ($pc eq 'empty') {
                 @res = grep { my @c = Code::Includable::Tree::NodeMethods::_children_as_list($_); !@c } @res;
             } elsif ($pc eq 'has') {
-                @res = csel(
-                    $opts, $f->{args}[0],
-                    _uniq_objects(
-                        (map { Code::Includable::Tree::NodeMethods::ancestors($_) } @res)
-                    ),
-                );
+                @res = _uniq_objects(
+                    map { reverse Code::Includable::Tree::NodeMethods::ancestors($_) }
+                        csel($opts, $f->{args}[0], @res)
+                    );
             } elsif ($pc eq 'not') {
                 #say "D: res=(".join(",", map {$_->{id}} @res).")";
                 my @matches = csel($opts, $f->{args}[0], @res);

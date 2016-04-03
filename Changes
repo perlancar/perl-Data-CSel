@@ -1,5 +1,11 @@
 Revision history for Data-CSel
 
+0.07    2016-04-03 (PERLANCAR)
+
+	- [Experimental] Allow chained attribute in attribute selector,
+	  e.g. [date.month = 12].
+
+
 0.06    2016-04-02 (PERLANCAR)
 
 	- [Bugfix] Bump prereq version Code::Includable::Tree::NodeMethods

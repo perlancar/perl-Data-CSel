@@ -8,26 +8,26 @@ use FindBin '$Bin';
 use lib "$Bin/lib";
 
 use Data::CSel qw(csel);
-use Prefix::TN2;
+use Local::C;
+use Local::TN;
+use Local::TN1;
+use Local::TN2;
 use Test::More 0.98;
-use TN;
-use TN1;
-use TN2;
 
 # to test combinator, class selector, ID selector, pseudo-classes (:first-child,
 # :last-child, etc)
-my $tree1 = TN->new_from_struct({
+my $tree1 = Local::TN->new_from_struct({
     id => 'root', _children => [
         {id => 'a1', _children => [
             {id => 'b11'},
-            {id => 'b12', _class=>'TN2'},
-            {id => 'b13', _class=>'TN2'},
-            {id => 'b14', _class=>'TN1'},
-            {id => 'b15', _class=>'TN'},
+            {id => 'b12', _class=>'Local::TN2'},
+            {id => 'b13', _class=>'Local::TN2'},
+            {id => 'b14', _class=>'Local::TN1'},
+            {id => 'b15', _class=>'Local::TN'},
         ]},
         {id => 'a2', _children => [
-             {id => 'b21', _class=>'TN2', _children => [
-                 {id => 'c211', _class=>'TN1'},
+             {id => 'b21', _class=>'Local::TN2', _children => [
+                 {id => 'c211', _class=>'Local::TN1'},
              ]},
          ]},
     ]},
@@ -38,12 +38,12 @@ $tree1->walk(sub { $n{$_[0]{id}} = $_ });
 $n{root} = $tree1;
 
 # to test attribute selector
-my $tree2 = TN->new_from_struct({
+my $tree2 = Local::TN->new_from_struct({
     id => 'root', _children => [
         {id => 'd1', int1=>2  , str1=>'a', bool1=>1    , defined1=>0    , },
         {id => 'd2', int1=>3  , str1=>'b', bool2=>0    , defined2=>undef, },
         {id => 'd3', int1=>'a', str1=>'c', bool3=>undef, },
-        {id => 'd4', _class=>'TN2'},
+        {id => 'd4', _class=>'Local::TN2'},
     ]},
 );
 
@@ -51,14 +51,30 @@ my %m; # nodes, key=id, val=obj
 $tree2->walk(sub { $m{$_[0]{id}} = $_ });
 $m{root} = $tree2;
 
+# to test chained attribute
+my $tree3 = Local::TN->new_from_struct({
+    id => 'root', _children => [
+        {id => 'd1'},
+        {id => 'd2', obj1=>undef},
+        {id => 'd3', obj1=>1},
+        {id => 'd4', obj1=>Local::C->new()},
+        {id => 'd5', obj1=>Local::C->new(attr1=>'a')},
+        {id => 'd6', obj1=>Local::C->new(attr1=>'b')},
+    ]},
+);
+
+my %n3; # nodes, key=id, val=obj
+$tree3->walk(sub { $n3{$_[0]{id}} = $_ });
+$n3{root} = $tree3;
+
 subtest "simple selector: type selector" => sub {
     test_csel(
-        expr   => "TN",
+        expr   => "Local::TN",
         nodes  => [$tree1],
         result => [@n{qw/root a1 a2 b11 b15/}],
     );
     test_csel(
-        expr   => "TN2",
+        expr   => "Local::TN2",
         nodes  => [$tree1],
         result => [@n{qw/b12 b13 b21/}],
     );
@@ -74,17 +90,17 @@ subtest "simple selector: universal selector" => sub {
 
 subtest "simple selector: class selector" => sub {
     test_csel(
-        expr   => ".TN",
+        expr   => ".Local::TN",
         nodes  => [$tree1],
         result => [@n{qw/root a1 a2 b11 b12 b13 b14 b15 b21 c211/}],
     );
     test_csel(
-        expr   => ".TN1",
+        expr   => ".Local::TN1",
         nodes  => [$tree1],
         result => [@n{qw/b14 c211/}],
     );
     test_csel(
-        expr   => ".TN1.TN2",
+        expr   => ".Local::TN1.Local::TN2",
         nodes  => [$tree1],
         result => [],
     );
@@ -134,16 +150,21 @@ subtest "simple selector: attribute selector" => sub {
         nodes  => [$m{root}],
         result => [@m{qw/d4/}],
     );
+    test_csel(
+        expr   => "[obj1.attr1]",
+        nodes  => [$n3{root}],
+        result => [@n3{qw/d4 d5 d6/}],
+    );
 
     test_csel(
         name   => 'op:eq (with type)',
-        expr   => "TN[id eq 'd1']",
+        expr   => "Local::TN[id eq 'd1']",
         nodes  => [$m{root}],
         result => [@m{qw/d1/}],
     );
     test_csel(
         name   => 'op:eq (unquoted operand)',
-        expr   => "TN[id eq d1]",
+        expr   => "Local::TN[id eq d1]",
         nodes  => [$m{root}],
         result => [@m{qw/d1/}],
     );
@@ -243,7 +264,7 @@ subtest "simple selector: attribute selector" => sub {
     );
     test_csel(
         name   => 'op:<',
-        expr   => "TN[int1 < 3]",
+        expr   => "Local::TN[int1 < 3]",
         nodes  => [$m{root}],
         result => [@m{qw/root d1 d3/}],
     );
@@ -262,7 +283,7 @@ subtest "simple selector: attribute selector" => sub {
     );
     test_csel(
         name   => 'op:<=',
-        expr   => "TN[int1 <= 3]",
+        expr   => "Local::TN[int1 <= 3]",
         nodes  => [$m{root}],
         result => [@m{qw/root d1 d2 d3/}],
     );
@@ -327,7 +348,7 @@ subtest "simple selector: attribute selector" => sub {
 
 subtest "simple selector: pseudo-class" => sub {
     test_csel(
-        expr   => "TN1:first",
+        expr   => "Local::TN1:first",
         nodes  => [$n{root}],
         result => [@n{qw/b14/}],
     );
@@ -406,7 +427,7 @@ subtest "simple selector: pseudo-class" => sub {
     );
 
     test_csel(
-        expr   => ":has('TN1')",
+        expr   => ":has('Local::TN1')",
         nodes  => [$n{root}],
         result => [@n{qw/root a1 a2 b21/}],
     );
@@ -426,25 +447,25 @@ subtest "simple selector: pseudo-class" => sub {
 subtest "selector: combinator" => sub {
     test_csel(
         name   => "descendant",
-        expr   => "TN TN1",
+        expr   => "Local::TN Local::TN1",
         nodes  => [$n{root}],
         result => [@n{qw/b14 c211/}],
     );
     test_csel(
         name   => "child",
-        expr   => "TN > TN1",
+        expr   => "Local::TN > Local::TN1",
         nodes  => [$n{root}],
         result => [@n{qw/b14/}],
     );
     test_csel(
         name   => "sibling",
-        expr   => "TN ~ TN",
+        expr   => "Local::TN ~ Local::TN",
         nodes  => [$n{root}],
         result => [@n{qw/a2 b15/}],
     );
     test_csel(
         name   => "adjacent sibling",
-        expr   => "TN + TN",
+        expr   => "Local::TN + Local::TN",
         nodes  => [$n{root}],
         result => [@n{qw/a2/}],
     );
@@ -452,18 +473,17 @@ subtest "selector: combinator" => sub {
 
 subtest "selectors: comma" => sub {
     test_csel(
-        expr   => "TN1, TN2",
+        expr   => "Local::TN1, Local::TN2",
         nodes  => [$n{root}],
         result => [@n{qw/b14 c211 b12 b13 b21/}],
     );
 };
 
 subtest "option: class_prefixes" => sub {
-    my $tree = TN->new_from_struct({
+    my $tree = Local::TN->new_from_struct({
         id => 'root', _children => [
-            {id => 'a1', _class => 'Prefix::TN2'},
-            {id => 'a2', _class => 'TN2'},
-            {id => 'a3', _class => 'TN'},
+            {id => 'a2', _class => 'Local::TN2'},
+            {id => 'a3', _class => 'Local::TN'},
         ]},
     );
     my %n; # nodes, key=id, val=obj
@@ -471,15 +491,17 @@ subtest "option: class_prefixes" => sub {
     $n{root} = $tree;
 
     test_csel(
+        name   => "without prefix",
         expr   => "TN2",
         nodes  => [$n{root}],
-        result => [@n{qw/a2/}],
+        result => [],
     );
     test_csel(
+        name   => "with prefix",
         expr   => "TN2",
-        opts   => {class_prefixes=>['Prefix']},
+        opts   => {class_prefixes=>['Local']},
         nodes  => [$n{root}],
-        result => [@n{qw/a1 a2/}],
+        result => [@n{qw/a2/}],
     );
 };
 

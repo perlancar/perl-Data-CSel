@@ -9,7 +9,7 @@ use warnings;
 
 use Code::Includable::Tree::NodeMethods;
 #use List::Util qw(first);
-use Scalar::Util qw(refaddr looks_like_number);
+use Scalar::Util qw(blessed refaddr looks_like_number);
 
 use Exporter qw(import);
 our @EXPORT_OK = qw(
@@ -186,6 +186,7 @@ our $RE =
 
               (?<ATTR_NAME>
                   [A-Za-z_][A-Za-z0-9_]*
+                  (?:\.[A-Za-z_][A-Za-z0-9_]*)*
               )
 
               (?<LITERAL>
@@ -377,17 +378,21 @@ sub _simpsel {
 
         if ($type eq 'attr_selector') {
 
-            my $attr = $f->{attr};
-            my $op  = $f->{op};
-            my $opv = $f->{value};
+            my @attrs = split /\./, $f->{attr};
+            my $op    = $f->{op};
+            my $opv   = $f->{value};
 
             my @newres;
           ITEM:
-            for my $o (@res) {
-                next ITEM unless $o->can($f->{attr});
+            for my $o0 (@res) {
+                my $o = $o0;
+                for my $attr (@attrs) {
+                    next ITEM unless blessed($o) && $o->can($attr);
+                    $o = $o->$attr;
+                }
                 goto PASS unless $op;
+                my $val = $o;
 
-                my $val = $o->$attr;
                 if ($op eq '=' || $op eq '==') {
                     if (looks_like_number($opv)) {
                         next ITEM unless $val == $opv;
@@ -463,7 +468,7 @@ sub _simpsel {
               PASS:
                 # pass all attribute filters, add to new result
                 #say "D:    adding to result: ".$o->{id};
-                push @newres, $o;
+                push @newres, $o0;
             } # for each item
             @res = @newres;
 
@@ -687,6 +692,14 @@ C<:not> pseudo-class (see L</"Pseudo-class">), for example:
 C<[ATTR OP LITERAL]> means to only select objects that have an attribute named
 C<ATTR> that has value that matches the expression specified by operator C<OP>
 and operand C<LITERAL>.
+
+B<Experimental:> a chain of attributes is allowed for the attribute, for
+example:
+
+ [date.month = 12]
+
+will select only objects that has an attribute C<date>, and the value of C<date>
+is an object that has an attribute C<month>, and the value of C<month> is 12.
 
 =head3 Literal
 

@@ -1,7 +1,7 @@
 package # hide from PAUSE
-    TN2;
+    Local::TN2;
 
-use parent 'TN';
+use parent 'Local::TN';
 
 sub int2 {
     my $self = shift;

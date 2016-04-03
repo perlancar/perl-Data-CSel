@@ -1,5 +1,5 @@
 package # hide from PAUSE
-    TN;
+    Local::TN;
 
 use Role::Tiny::With;
 
@@ -72,6 +72,12 @@ sub defined1 {
     my $self = shift;
     $self->{defined1} = $_[0] if @_;
     $self->{defined1};
+}
+
+sub obj1 {
+    my $self = shift;
+    $self->{obj1} = $_[0] if @_;
+    $self->{obj1};
 }
 
 1;

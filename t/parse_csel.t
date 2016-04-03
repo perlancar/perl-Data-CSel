@@ -89,6 +89,15 @@ subtest "simple selector: attribute selector" => sub {
             ]}],
         ],
     );
+    test_parse(
+        name=>"chained attributes",
+        expr=>"T[foo.bar.baz = str ]",
+        res=>[
+            [{type=>"T", filters=>[
+                {type=>"attr_selector", attr=>"foo.bar.baz", op=>"=", value=>'str'},
+            ]}],
+        ],
+    );
 };
 
 subtest "simple selector: pseudo-class" => sub {

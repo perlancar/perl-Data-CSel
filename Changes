@@ -1,5 +1,11 @@
 Revision history for Data-CSel
 
+0.08    2016-05-31 (PERLANCAR)
+
+	- Temporarily set minimum perl version to 5.20.0 because of failing
+	  test reports for 5.18.4 and earlier perls [CT].
+
+
 0.07    2016-04-03 (PERLANCAR)
 
 	- [Experimental] Allow chained attribute in attribute selector,

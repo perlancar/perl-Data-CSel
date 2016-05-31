@@ -3,7 +3,7 @@ package Data::CSel;
 # DATE
 # VERSION
 
-use 5.010001;
+use 5.020000;
 use strict;
 use warnings;
 

@@ -1198,6 +1198,14 @@ Parse an expression. On success, will return a hash containing parsed
 information. On failure, will return undef.
 
 
+=head1 FAQ
+
+=head2 Can I use csel() against a regular data structure (instead of a tree of objects)?
+
+Use L<Data::CSel::WrapStruct> to create a tree of object from the data
+structure, then perform C<csel()> on the resulting tree.
+
+
 =head1 SEE ALSO
 
 CSS4 Selectors Specification, L<https://www.w3.org/TR/selectors4/>.
@@ -1216,3 +1224,5 @@ These modules let you use CSS selector syntax (or its subset) to select nodes of
 an HTML document: L<Mojo::DOM> (or L<DOM::Tiny>), L<jQuery>, L<pQuery>,
 L<HTML::Selector::XPath> (or via L<Web::Query>). The last two modules can also
 handle XPath expression.
+
+L<Data::CSel::WrapStruct>

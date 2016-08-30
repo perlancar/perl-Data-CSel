@@ -54,12 +54,29 @@ subtest "simple selector: attribute selector" => sub {
             ]}],
         ],
     );
+    test_parse(
+        name => 'type selector is optional (+args)',
+        expr=>"[attr()]",
+        res=>[
+            [{type=>"*", filters=>[
+                {type=>"attr_selector", attr=>"attr", args=>[]},
+            ]}],
+        ],
+    );
 
     test_parse(
         expr=>"T[attr]",
         res=>[
             [{type=>"T", filters=>[
                 {type=>"attr_selector", attr=>"attr"},
+            ]}],
+        ],
+    );
+    test_parse(
+        expr=>"T[attr(1,2,'foo')]",
+        res=>[
+            [{type=>"T", filters=>[
+                {type=>"attr_selector", attr=>"attr", args=>[1,2,'foo']},
             ]}],
         ],
     );

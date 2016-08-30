@@ -118,8 +118,8 @@ our $RE =
                       (?{
                           $^R->[0][1]{type}  = 'attr_selector';
                           $^R->[0][1]{attr}  = $^R->[1][0];
-                          $^R->[0][1]{op}    = $^R->[1][1] if @{$^R->[1]} > 1;
-                          $^R->[0][1]{value} = $^R->[1][2] if @{$^R->[1]} > 2;
+                          $^R->[0][1]{op}    = $^R->[1][1] if defined $^R->[1][1];
+                          $^R->[0][1]{value} = $^R->[1][2] if @{ $^R->[1] } > 2;
                           $^R->[0];
                       })
                   |
@@ -148,45 +148,68 @@ our $RE =
               )
 
               (?<ATTR_SELECTOR>
-                  \[\s*((?&ATTR_NAME))\s*\]
-                  (?{ [$^R, [$^N]] })
-              |
                   \[\s*
-                  ((?&ATTR_NAME))
-                  (?{ [$^R, [$^N]] })
-
-                  (
-                      \s*(?:=~|!~)\s* |
-                      \s*(?:!=|<>|>=?|<=?|==?)\s* |
-                      \s+(?:eq|ne|lt|gt|le|ge)\s+ |
-                      \s+(?:isnt|is)\s+
-                  )
+                  (?&ATTR_SUBJECTS) # [[$^R, [{name=>$name, args=>$args}, ...]]
                   (?{
-                      my $op = $^N;
-                      $op =~ s/^\s+//; $op =~ s/\s+$//;
-                      push @{$^R->[1]}, $op;
                       $^R;
                   })
 
                   (?:
-                      ((?&LITERAL)) # [[$^R, [$attr, $op]], $literal]
+                      (
+                          \s*(?:=~|!~)\s* |
+                          \s*(?:!=|<>|>=?|<=?|==?)\s* |
+                          \s+(?:eq|ne|lt|gt|le|ge)\s+ |
+                          \s+(?:isnt|is)\s+
+                      )
                       (?{
-                          push @{ $^R->[0][1] }, $^R->[1];
-                          $^R->[0];
-                      })
-                  |
-                      (\w[^\s\]]*) # allow unquoted string
-                      (?{
-                          push @{ $^R->[1] }, $^N;
+                          my $op = $^N;
+                          $op =~ s/^\s+//; $op =~ s/\s+$//;
+                          push @{$^R->[1]}, $op;
                           $^R;
                       })
-                  )
+
+                      (?:
+                          (?&LITERAL) # [[$^R, [$attr, $op]], $literal]
+                          (?{
+                              push @{ $^R->[0][1] }, $^R->[1];
+                              $^R->[0];
+                          })
+                      |
+                          (\w[^\s\]]*) # allow unquoted string
+                          (?{
+                              push @{ $^R->[1] }, $^N;
+                              $^R;
+                          })
+                      )
+                  )?
                   \s*\]
               )
 
               (?<ATTR_NAME>
                   [A-Za-z_][A-Za-z0-9_]*
-                  (?:\.[A-Za-z_][A-Za-z0-9_]*)*
+              )
+
+              (?<ATTR_SUBJECT>
+                  (?{ [$^R, []] })
+                  ((?&ATTR_NAME))
+                  (?{
+                      push @{ $^R->[1] }, $^N;
+                      $^R;
+                  })
+              )
+
+              (?<ATTR_SUBJECTS>
+                  (?{ [$^R, []] })
+                  (?&ATTR_SUBJECT) # [[$^R, $name, \%args]]
+                  (?{
+                      push @{ $^R->[0][1] }, {name=>$^R->[1], args=>$^R->[2]};
+                      use DDC; dd $^R;
+                      $^R;
+                  })
+                  (?:
+                      \.
+                      (&ATTR_SUBJECT) # [[$^R, $name, \%args]]
+                  )*
               )
 
               (?<LITERAL>
@@ -691,7 +714,31 @@ C<:not> pseudo-class (see L</"Pseudo-class">), for example:
 
 C<[ATTR OP LITERAL]> means to only select objects that have an attribute named
 C<ATTR> that has value that matches the expression specified by operator C<OP>
-and operand C<LITERAL>.
+and operand C<LITERAL>. For example:
+
+ [length > 12]
+ [is_done is true]
+ [name =~ /foo/]
+
+B<Calling methods> C<ATTR> can also be replaced by C<METH()> or C<METH(LITERAL,
+...)> to allow passing arguments to methods. Note that this specific syntax:
+
+ [METH()]
+
+does not simply mean to select objects that respond to C<METH>, but actually:
+
+ [METH() is true]
+
+For example:
+
+ # select objects that have non-zero length
+ [length()]
+
+ # while this means to select objects that have 'length' attribute
+ [length]
+
+ # select objects for which the method call returns true
+ [has_key('foo')]
 
 B<Experimental:> a chain of attributes is allowed for the attribute, for
 example:

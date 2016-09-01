@@ -1,5 +1,13 @@
 Revision history for Data-CSel
 
+0.09    2016-09-01 (PERLANCAR)
+
+	- Support method call e.g. T[attr("arg1",2)] as well as chained
+	  attribute/method calls e.g. T[attr1.attr2().attr3(1,2) = 42].
+
+	- [doc] Mention Data::CSel::WrapStruct & CSel::Examples.
+
+
 0.08    2016-05-31 (PERLANCAR)
 
 	- Temporarily set minimum perl version to 5.20.0 because of failing

@@ -1319,3 +1319,5 @@ L<HTML::Selector::XPath> (or via L<Web::Query>). The last two modules can also
 handle XPath expression.
 
 L<Data::CSel::WrapStruct>
+
+L<CSel::Examples>

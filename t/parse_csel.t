@@ -50,7 +50,7 @@ subtest "simple selector: attribute selector" => sub {
         expr=>"[attr]",
         res=>[
             [{type=>"*", filters=>[
-                {type=>"attr_selector", attr=>"attr"},
+                {type=>"attr_selector", attr=>[{name=>"attr"}]},
             ]}],
         ],
     );
@@ -59,7 +59,7 @@ subtest "simple selector: attribute selector" => sub {
         expr=>"[attr()]",
         res=>[
             [{type=>"*", filters=>[
-                {type=>"attr_selector", attr=>"attr", args=>[]},
+                {type=>"attr_selector", attr=>[{name=>"attr", args=>[]}]},
             ]}],
         ],
     );
@@ -68,7 +68,7 @@ subtest "simple selector: attribute selector" => sub {
         expr=>"T[attr]",
         res=>[
             [{type=>"T", filters=>[
-                {type=>"attr_selector", attr=>"attr"},
+                {type=>"attr_selector", attr=>[{name=>"attr"}]},
             ]}],
         ],
     );
@@ -76,7 +76,7 @@ subtest "simple selector: attribute selector" => sub {
         expr=>"T[attr(1,2,'foo')]",
         res=>[
             [{type=>"T", filters=>[
-                {type=>"attr_selector", attr=>"attr", args=>[1,2,'foo']},
+                {type=>"attr_selector", attr=>[{name=>"attr", args=>[1,2,'foo']}]},
             ]}],
         ],
     );
@@ -84,7 +84,7 @@ subtest "simple selector: attribute selector" => sub {
         expr=>"T[attr=1]",
         res=>[
             [{type=>"T", filters=>[
-                {type=>"attr_selector", attr=>"attr", op=>"=", value=>1},
+                {type=>"attr_selector", attr=>[{name=>"attr"}], op=>"=", value=>1},
             ]}],
         ],
     );
@@ -93,7 +93,7 @@ subtest "simple selector: attribute selector" => sub {
         expr=>"T[attr = 'str']",
         res=>[
             [{type=>"T", filters=>[
-                {type=>"attr_selector", attr=>"attr", op=>"=", value=>'str'},
+                {type=>"attr_selector", attr=>[{name=>"attr"}], op=>"=", value=>'str'},
             ]}],
         ],
     );
@@ -102,16 +102,16 @@ subtest "simple selector: attribute selector" => sub {
         expr=>"T[attr = str ]",
         res=>[
             [{type=>"T", filters=>[
-                {type=>"attr_selector", attr=>"attr", op=>"=", value=>'str'},
+                {type=>"attr_selector", attr=>[{name=>"attr"}], op=>"=", value=>'str'},
             ]}],
         ],
     );
     test_parse(
         name=>"chained attributes",
-        expr=>"T[foo.bar.baz = str ]",
+        expr=>"T[foo.bar().baz(1) = str ]",
         res=>[
             [{type=>"T", filters=>[
-                {type=>"attr_selector", attr=>"foo.bar.baz", op=>"=", value=>'str'},
+                {type=>"attr_selector", attr=>[{name=>"foo"},{name=>"bar",args=>[]},{name=>"baz",args=>[1]}], op=>"=", value=>'str'},
             ]}],
         ],
     );
@@ -179,8 +179,8 @@ subtest "simple selector: attribute selector + pseudo-class" => sub {
         expr=>"T[attr][attr2]:foo(1, 'a'):bar",
         res=>[
             [{type=>"T", filters=>[
-                {type=>"attr_selector", attr=>"attr"},
-                {type=>"attr_selector", attr=>"attr2"},
+                {type=>"attr_selector", attr=>[{name=>"attr"}]},
+                {type=>"attr_selector", attr=>[{name=>"attr2"}]},
                 {type=>"pseudoclass", pseudoclass=>"foo", args=>[1, "a"]},
                 {type=>"pseudoclass", pseudoclass=>"bar"},
             ]}],

@@ -114,7 +114,7 @@ our $RE =
               (?<FILTER>
                   (?{ [$^R, {}] })
                   (
-                      (?&ATTR_SELECTOR) # [[$^R, {}], [$attr, $op, $val]]
+                      (?&ATTR_SELECTOR) # [[$^R0, {}], [$attr, $op, $val]]
                       (?{
                           $^R->[0][1]{type}  = 'attr_selector';
                           $^R->[0][1]{attr}  = $^R->[1][0];
@@ -149,9 +149,11 @@ our $RE =
 
               (?<ATTR_SELECTOR>
                   \[\s*
+                  (?{ [$^R, []] }) # [$^R, [$subjects, $op, $literal]]
                   (?&ATTR_SUBJECTS) # [[$^R, [{name=>$name, args=>$args}, ...]]
                   (?{
-                      $^R;
+                      push @{ $^R->[0][1] }, $^R->[1];
+                      $^R->[0];
                   })
 
                   (?:
@@ -164,12 +166,12 @@ our $RE =
                       (?{
                           my $op = $^N;
                           $op =~ s/^\s+//; $op =~ s/\s+$//;
-                          push @{$^R->[1]}, $op;
+                          $^R->[1][1] = $op;
                           $^R;
                       })
 
                       (?:
-                          (?&LITERAL) # [[$^R, [$attr, $op]], $literal]
+                          (?&LITERAL) # [[$^R0, [$attr, $op]], $literal]
                           (?{
                               push @{ $^R->[0][1] }, $^R->[1];
                               $^R->[0];
@@ -177,7 +179,7 @@ our $RE =
                       |
                           (\w[^\s\]]*) # allow unquoted string
                           (?{
-                              push @{ $^R->[1] }, $^N;
+                              $^R->[1][2] = $^N;
                               $^R;
                           })
                       )
@@ -190,25 +192,58 @@ our $RE =
               )
 
               (?<ATTR_SUBJECT>
-                  (?{ [$^R, []] })
+                  (?{ [$^R, []] }) # [$^R, [name, \@args]]
                   ((?&ATTR_NAME))
                   (?{
                       push @{ $^R->[1] }, $^N;
                       $^R;
                   })
+                  (?:
+                      # attribute arguments
+                      \s*\(\s*
+                      (?{
+                          $^R->[1][1] = [];
+                          $^R;
+                      })
+                      (?:
+                          (?&LITERAL)
+                          (?{
+                              push @{ $^R->[0][1][1] }, $^R->[1];
+                              $^R->[0];
+                          })
+                          (?:
+                              \s*,\s*
+                              (?&LITERAL)
+                              (?{
+                                  push @{ $^R->[0][1][1] }, $^R->[1];
+                                  $^R->[0];
+                              })
+                          )*
+                      )?
+                      \s*\)\s*
+                  )?
               )
 
               (?<ATTR_SUBJECTS>
                   (?{ [$^R, []] })
-                  (?&ATTR_SUBJECT) # [[$^R, $name, \%args]]
+                  (?&ATTR_SUBJECT) # [[$^R, [$name, \@args]]
                   (?{
-                      push @{ $^R->[0][1] }, {name=>$^R->[1], args=>$^R->[2]};
-                      use DDC; dd $^R;
-                      $^R;
+                      push @{ $^R->[0][1] }, {
+                          name => $^R->[1][0],
+                          (args => $^R->[1][1]) x !!defined($^R->[1][1]),
+                      };
+                      $^R->[0];
                   })
                   (?:
-                      \.
-                      (&ATTR_SUBJECT) # [[$^R, $name, \%args]]
+                      \s*\.\s*
+                      (?&ATTR_SUBJECT) # [[$^R, $name, \@args]]
+                      (?{
+                          push @{ $^R->[0][1] }, {
+                              name => $^R->[1][0],
+                              (args => $^R->[1][1]) x !!defined($^R->[1][1]),
+                          };
+                          $^R->[0];
+                      })
                   )*
               )
 
@@ -401,7 +436,7 @@ sub _simpsel {
 
         if ($type eq 'attr_selector') {
 
-            my @attrs = split /\./, $f->{attr};
+            my @attrs = @{ $f->{attr} };
             my $op    = $f->{op};
             my $opv   = $f->{value};
 
@@ -409,9 +444,20 @@ sub _simpsel {
           ITEM:
             for my $o0 (@res) {
                 my $o = $o0;
-                for my $attr (@attrs) {
-                    next ITEM unless blessed($o) && $o->can($attr);
-                    $o = $o->$attr;
+                for my $i (0..$#attrs) {
+                    my $attr_name = $attrs[$i]{name};
+                    my $attr_args = $attrs[$i]{args};
+                    next ITEM unless blessed($o) && $o->can($attr_name);
+                    if ($attr_args && $i == $#attrs) {
+                        # T[meth()] means T[meth() is true]
+                        unless ($op) {
+                            $op = 'is';
+                            $opv = 1;
+                        }
+                        $o = $o->$attr_name(@$attr_args);
+                    } else {
+                        $o = $o->$attr_name;
+                    }
                 }
                 goto PASS unless $op;
                 my $val = $o;

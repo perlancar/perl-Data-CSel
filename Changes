@@ -1,5 +1,16 @@
 Revision history for Data-CSel
 
+0.10    2016-09-10 (PERLANCAR)
+
+	- [Bugfix] Workaround the problem of backtracking in the case of
+	  attribute selector [foo() eq 1] or [foo.bar.baz() ne 2] (a
+	  combination of paren in the last attribute name and an
+	  alphanumeric operator) messing up the result.
+
+	- Add (*PRUNE) to avoid backtracking in the case of foobar in
+	  [foobar(,)=1] to fooba, foob, ...
+
+
 0.09    2016-09-01 (PERLANCAR)
 
 	- Support method call e.g. T[attr("arg1",2)] as well as chained

@@ -115,6 +115,15 @@ subtest "simple selector: attribute selector" => sub {
             ]}],
         ],
     );
+    test_parse(
+        name=>"chained attributes (2)", # this caused backtracking and thus duplicate entry in attr in v0.09
+        expr=>"T[foo.bar().baz(1) eq str ]",
+        res=>[
+            [{type=>"T", filters=>[
+                {type=>"attr_selector", attr=>[{name=>"foo"},{name=>"bar",args=>[]},{name=>"baz",args=>[1]}], op=>"eq", value=>'str'},
+            ]}],
+        ],
+    );
 };
 
 subtest "simple selector: pseudo-class" => sub {

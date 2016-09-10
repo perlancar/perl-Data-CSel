@@ -17,6 +17,8 @@ our @EXPORT_OK = qw(
                        parse_csel
                );
 
+our $_i1;
+
 our $RE =
     qr{
           (?&SELECTORS) (?{ $_ = $^R->[1] })
@@ -152,6 +154,7 @@ our $RE =
                   (?{ [$^R, []] }) # [$^R, [$subjects, $op, $literal]]
                   (?&ATTR_SUBJECTS) # [[$^R, [{name=>$name, args=>$args}, ...]]
                   (?{
+                      #use Data::Dmp; say "D:setting subjects: ", dmp $^R->[1];
                       push @{ $^R->[0][1] }, $^R->[1];
                       $^R->[0];
                   })
@@ -160,7 +163,7 @@ our $RE =
                       (
                           \s*(?:=~|!~)\s* |
                           \s*(?:!=|<>|>=?|<=?|==?)\s* |
-                          \s+(?:eq|ne|lt|gt|le|ge)\s+ |
+                          \s++(?:eq|ne|lt|gt|le|ge)\s++ |
                           \s+(?:isnt|is)\s+
                       )
                       (?{
@@ -195,6 +198,7 @@ our $RE =
                   (?{ [$^R, []] }) # [$^R, [name, \@args]]
                   ((?&ATTR_NAME))
                   (?{
+                      #say "D:pushing attribute subject: $^N";
                       push @{ $^R->[1] }, $^N;
                       $^R;
                   })
@@ -208,6 +212,7 @@ our $RE =
                       (?:
                           (?&LITERAL)
                           (?{
+                              #use Data::Dmp; say "D:pushing argument: ", dmp $^R->[1];
                               push @{ $^R->[0][1][1] }, $^R->[1];
                               $^R->[0];
                           })
@@ -215,6 +220,7 @@ our $RE =
                               \s*,\s*
                               (?&LITERAL)
                               (?{
+                                  #use Data::Dmp; say "D:pushing argument: ", dmp $^R->[1];
                                   push @{ $^R->[0][1][1] }, $^R->[1];
                                   $^R->[0];
                               })
@@ -225,23 +231,32 @@ our $RE =
               )
 
               (?<ATTR_SUBJECTS>
-                  (?{ [$^R, []] })
+                  (?{ $_i1 = 0; [$^R, []] })
                   (?&ATTR_SUBJECT) # [[$^R, [$name, \@args]]
                   (?{
-                      push @{ $^R->[0][1] }, {
-                          name => $^R->[1][0],
-                          (args => $^R->[1][1]) x !!defined($^R->[1][1]),
-                      };
-                      $^R->[0];
-                  })
-                  (?:
-                      \s*\.\s*
-                      (?&ATTR_SUBJECT) # [[$^R, $name, \@args]]
-                      (?{
+                      $_i1++;
+                      unless ($_i1 > 1) { # to prevent backtracking from executing tihs code block twice
+                          #say "D:pushing subject(1)";
                           push @{ $^R->[0][1] }, {
                               name => $^R->[1][0],
                               (args => $^R->[1][1]) x !!defined($^R->[1][1]),
                           };
+                      }
+                      $^R->[0];
+                  })
+                  (?:
+                      \s*\.\s*
+                      (?{ $_i1 = 0; $^R })
+                      (?&ATTR_SUBJECT) # [[$^R, $name, \@args]]
+                      (?{
+                          $_i1++;
+                          unless ($_i1 > 1) { # to prevent backtracking from executing this code block twice
+                              #say "D:pushing subject(2)";
+                              push @{ $^R->[0][1] }, {
+                                  name => $^R->[1][0],
+                                  (args => $^R->[1][1]) x !!defined($^R->[1][1]),
+                              };
+                          }
                           $^R->[0];
                       })
                   )*

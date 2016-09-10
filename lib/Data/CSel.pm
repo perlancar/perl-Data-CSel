@@ -200,7 +200,7 @@ our $RE =
                   })
                   (?:
                       # attribute arguments
-                      \s*\(\s*
+                      \s*\(\s* (*PRUNE)
                       (?{
                           $^R->[1][1] = [];
                           $^R;

@@ -674,6 +674,11 @@ sub csel {
     my $pexpr = parse_csel($expr);
     $pexpr or die "Invalid CSel expression '$expr'";
 
+    local $Code::Includable::Tree::NodeMethods::GET_PARENT_METHOD   = $opts->{get_parent_method}   if $opts->{get_parent_method};
+    local $Code::Includable::Tree::NodeMethods::SET_PARENT_METHOD   = $opts->{set_parent_method}   if $opts->{set_parent_method};
+    local $Code::Includable::Tree::NodeMethods::GET_CHILDREN_METHOD = $opts->{get_children_method} if $opts->{get_children_method};
+    local $Code::Includable::Tree::NodeMethods::SET_CHILDREN_METHOD = $opts->{set_children_method} if $opts->{set_children_method};
+
     my @res = _uniq_objects(map { _sel($opts, $_, @nodes) } @$pexpr );
 
     if ($opts->{wrap}) {
@@ -1276,7 +1281,8 @@ A tree node object is any regular Perl object satisfying the following criteria:
 object, or undef if object is the root node); 2) it supports a C<children>
 method which should return a list (or an arrayref) of children node objects
 (where the list/array will be empty for a leaf node). Note: you can use
-L<Role::TinyCommons::Tree::Node> to enforce this requirement.
+L<Role::TinyCommons::Tree::Node> to enforce this requirement. Note: the
+C<parent> and C<children> method names can actually be customized, see options.
 
 Known options:
 
@@ -1297,6 +1303,42 @@ will match class C<Foo::Bar::T>, or C<Baz::T>, or C<T>.
 If set to true, instead of returning a list of matching nodes, the function will
 return a L<Data::CSel::Selection> object instead (which wraps the result, for
 convenience). See the selection object's documentation for more details.
+
+=item * get_parent_method => str
+
+Example:
+
+ get_parent_method => 'get_parent'
+
+This option can be used if your node object uses method other than the default
+C<parent> to get parent node.
+
+=item * set_parent_method => str
+
+Example:
+
+ set_parent_method => 'set_parent'
+
+This option can be used if your node object uses method other than the default
+C<parent> to set parent node.
+
+=item * get_children_method => str
+
+Example:
+
+ get_children_method => 'get_children'
+
+This option can be used if your node object uses method other than the default
+C<children> to get children nodes.
+
+=item * set_children_method => str
+
+Example:
+
+ set_children_method => 'set_children'
+
+This option can be used if your node object uses method other than the default
+C<children> to set children nodes.
 
 =back
 

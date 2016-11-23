@@ -1,5 +1,11 @@
 Revision history for Data-CSel
 
+0.11    2016-11-23 (PERLANCAR)
+
+	- csel(): Add options {get,set}_{parent,children}_method to allow
+	  customizing method names.
+
+
 0.10    2016-09-10 (PERLANCAR)
 
 	- [Bugfix] Workaround the problem of backtracking in the case of

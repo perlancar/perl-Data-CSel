@@ -1,5 +1,3 @@
-Revision history for Data-CSel
-
 0.11    2016-11-23 (PERLANCAR)
 
 	- csel(): Add options {get,set}_{parent,children}_method to allow

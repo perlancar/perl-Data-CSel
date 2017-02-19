@@ -69,7 +69,7 @@
 
 0.02     2016-03-22 (PERLANCAR)
 
-         This release improves "compatibility" with CSS selector.
+         - This release improves "compatibility" with CSS selector.
 
          - [Incompatible change] Type selector no longer uses isa() but string
            comparison of class name. This means the expression 'T' only matches

@@ -559,7 +559,23 @@ sub _simpsel {
         } elsif ($type eq 'class_selector') {
 
             my $class = $f->{class};
-            @res = grep { $_->isa($class) } @res;
+
+            my @classes_to_match;
+            for (@{ $opts->{class_prefixes} // [] }) {
+                push @classes_to_match, $_ . (/::$/ ? "" : "::") . $class;
+            }
+            push @classes_to_match, $class;
+            my @filtered_res;
+          RES:
+            for my $res (@res) {
+                for (@classes_to_match) {
+                    if ($res->isa($_)) {
+                        push @filtered_res, $res;
+                        next RES;
+                    }
+                }
+            }
+            @res = @filtered_res;
 
         } elsif ($type eq 'id_selector') {
 

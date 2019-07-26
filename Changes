@@ -1,4 +1,4 @@
-0.121   2019-07-26 (PERLANCAR)
+0.121   2019-07-26  Released-By: PERLANCAR; Urgency: medium
 
 	- [bugfix] class selector didn't observe class_prefixes.
 

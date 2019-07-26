@@ -1268,7 +1268,11 @@ something like this CSel, as we deal with only Perl objects.
 
 =head1 FUNCTIONS
 
-=head2 csel([ \%opts , ] $expr, @tree_nodes) => list|selection_object
+=head2 csel
+
+Usage:
+
+ $list_or_selection_obj = csel([ \%opts , ] $expr, @tree_nodes)
 
 Select from tree node objects C<@tree_nodes> using CSel expression C<$expr>.
 Will return a list of mattching node objects (unless when C<wrap> option is
@@ -1342,7 +1346,11 @@ C<children> to set children nodes.
 
 =back
 
-=head2 parse_csel($expr) => hash|undef
+=head2 parse_csel
+
+Usage:
+
+ $hash = parse_csel($expr);
 
 Parse an expression. On success, will return a hash containing parsed
 information. On failure, will return undef.

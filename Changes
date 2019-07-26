@@ -1,3 +1,13 @@
+0.120   2019-07-26  Released-By: PERLANCAR; Urgency: low
+
+	- No functional changes.
+
+	- [doc] Organize See Also section. Mention ddsel, html-css-sel, htmlsel,
+	  jsonsel, orgsel, podsel, ppisel, yamlsel.
+
+	- [doc] Pod formatting to make functions/variables more easily linkable.
+
+
 0.11    2016-11-23  Released-By: PERLANCAR
 
 	- csel(): Add options {get,set}_{parent,children}_method to allow

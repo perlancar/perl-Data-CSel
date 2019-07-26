@@ -1375,6 +1375,9 @@ an HTML document: L<Mojo::DOM> (or L<DOM::Tiny>), L<jQuery>, L<pQuery>,
 L<HTML::Selector::XPath> (or via L<Web::Query>). The last two modules can also
 handle XPath expression.
 
+CLI to select HTML elements using CSS selector syntax: L<html-css-sel> (from
+L<App::html::css::sel>).
+
 =head2 Similar query languages
 
 These modules let you use XPath (or XPath-like) syntax to select nodes of a data
@@ -1395,8 +1398,31 @@ L<CSel::Examples>
 
 =head2 Modules that use CSel
 
-To select JSON elements: L<App::jsonsel>
+=over
 
-To select YAML elements: L<App::jsonsel>
+=item * For data structure
 
-To select Org elements: L<App::orgsel>
+CLI to select JSON nodes using CSel: L<jsonsel> (from L<App::jsonsel>).
+
+CLI to select Perl data structure elements using CSel: L<ddsel> (from
+L<App::CSelUtils>).
+
+CLI to select YAML nodes using CSel: L<yamlsel> (from L<App::yamlsel>).
+
+=item * For HTML document
+
+L<htmlsel> (from L<App::htmlsel>).
+
+=item * For Org document
+
+L<orgsel> (from L<App::orgsel>).
+
+=item * For POD document
+
+CLI to select POD::Elemental nodes using CSel: L<podsel> (from L<App::podsel>).
+
+=item * For PPI (Perl source code tree representation) document
+
+CLI to select PPI nodes using CSel: L<ppisel> (from L<App::ppisel>).
+
+=back

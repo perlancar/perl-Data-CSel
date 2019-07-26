@@ -1366,7 +1366,16 @@ structure, then perform C<csel()> on the resulting tree.
 
 =head1 SEE ALSO
 
+=head2 Related to CSS selector
+
 CSS4 Selectors Specification, L<https://www.w3.org/TR/selectors4/>.
+
+These modules let you use CSS selector syntax (or its subset) to select nodes of
+an HTML document: L<Mojo::DOM> (or L<DOM::Tiny>), L<jQuery>, L<pQuery>,
+L<HTML::Selector::XPath> (or via L<Web::Query>). The last two modules can also
+handle XPath expression.
+
+=head2 Similar query languages
 
 These modules let you use XPath (or XPath-like) syntax to select nodes of a data
 structure: L<Data::DPath>. Like CSS selectors, XPath is another query language
@@ -1378,11 +1387,16 @@ L<JSON::Path>. JSONPath is a query language to select nodes of a JSON document
 (data structure). JSONPath specification:
 L<http://goessner.net/articles/JsonPath>.
 
-These modules let you use CSS selector syntax (or its subset) to select nodes of
-an HTML document: L<Mojo::DOM> (or L<DOM::Tiny>), L<jQuery>, L<pQuery>,
-L<HTML::Selector::XPath> (or via L<Web::Query>). The last two modules can also
-handle XPath expression.
+=head2 Related modules
 
 L<Data::CSel::WrapStruct>
 
 L<CSel::Examples>
+
+=head2 Modules that use CSel
+
+To select JSON elements: L<App::jsonsel>
+
+To select YAML elements: L<App::jsonsel>
+
+To select Org elements: L<App::orgsel>

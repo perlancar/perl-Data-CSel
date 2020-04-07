@@ -1,6 +1,8 @@
 package Data::CSel::Selection;
 
+# AUTHORITY
 # DATE
+# DIST
 # VERSION
 
 sub new {

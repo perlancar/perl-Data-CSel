@@ -1,6 +1,8 @@
 package Data::CSel;
 
+# AUTHORITY
 # DATE
+# DIST
 # VERSION
 
 use 5.020000;
@@ -16,6 +18,8 @@ our @EXPORT_OK = qw(
                        csel
                        parse_csel
                );
+
+our @CLASS_PREFIXES;
 
 our $_i1;
 
@@ -423,7 +427,7 @@ sub _simpsel {
         my @fres;
 
         my @types_to_match;
-        for (@{ $opts->{class_prefixes} // [] }) {
+        for (@{ $opts->{class_prefixes} // [] }, @CLASS_PREFIXES) {
             push @types_to_match, $_ . (/::$/ ? "" : "::") . $simpsel->{type};
         }
         push @types_to_match, $simpsel->{type};
@@ -561,7 +565,7 @@ sub _simpsel {
             my $class = $f->{class};
 
             my @classes_to_match;
-            for (@{ $opts->{class_prefixes} // [] }) {
+            for (@{ $opts->{class_prefixes} // [] }, @CLASS_PREFIXES) {
                 push @classes_to_match, $_ . (/::$/ ? "" : "::") . $class;
             }
             push @classes_to_match, $class;
@@ -1310,13 +1314,17 @@ Known options:
 
 =item * class_prefixes => array of str
 
-Array of namespace to check when matching type in type selector as well as class
-selector. This is like PATH environment variable in Unix shell. For example, if
-C<class_prefixes> is C<< ["Foo::Bar", "Baz"] >>, then this expression:
+Array of namespace prefixes to check when matching type in type selector as well
+as class selector. This is like PATH environment variable in Unix shell. For
+example, if C<class_prefixes> is C<< ["Foo::Bar", "Baz"] >>, then this
+expression:
 
  T
 
 will match class C<Foo::Bar::T>, or C<Baz::T>, or C<T>.
+
+Note that C<@Data::CSel::CLASS_PREFIXES> is also consulted after this
+C<class_prefixes> option.
 
 =item * wrap => bool
 
@@ -1370,6 +1378,23 @@ Usage:
 
 Parse an expression. On success, will return a hash containing parsed
 information. On failure, will return undef.
+
+
+=head1 VARIABLES
+
+=head1 @Data::CSel::CLASS_PREFIXES
+
+Array of namespace prefixes to check when matching type in type selector as well
+as class selector. This is like PATH environment variable in Unix shell. For
+example, if C<@CLASS_PREFIXES> is C<< ["Foo::Bar", "Baz"] >>, then this
+expression:
+
+ T
+
+will match class C<Foo::Bar::T>, or C<Baz::T>, or C<T>.
+
+Note that C<@Data::CSel::CLASS_PREFIXES> is consulted after the
+C<class_prefixes> opton in C<csel()>.
 
 
 =head1 FAQ

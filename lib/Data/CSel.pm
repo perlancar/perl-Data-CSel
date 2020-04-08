@@ -16,6 +16,7 @@ use Scalar::Util qw(blessed refaddr looks_like_number);
 use Exporter qw(import);
 our @EXPORT_OK = qw(
                        csel
+                       csel_each
                        parse_csel
                );
 
@@ -709,14 +710,29 @@ sub csel {
     }
 }
 
+sub csel_each(&;@) {
+    my $cb = shift;
+    for my $node (csel(@_)) {
+        local $_ = $node;
+        $cb->($_);
+    }
+    undef;
+}
+
 1;
 # ABSTRACT: Select tree node objects using CSS Selector-like syntax
 
 =head1 SYNOPSIS
 
- use Data::CSel qw(csel);
+ use Data::CSel qw(csel csel_each);
 
  my @cells = csel("Table[name=~/data/i] TCell[value != '']:first", $tree);
+ for (@cells) { say $_->value }
+
+Using L</csel_each>:
+
+
+Using selection object:
 
  # ditto, but wrap result using a Data::CSel::Selection
  my $res = csel({wrap=>1}, "Table ...", $tree);
@@ -1369,6 +1385,18 @@ This option can be used if your node object uses method other than the default
 C<children> to set children nodes.
 
 =back
+
+=head2 csel_each
+
+Usage:
+
+ csel_each { say $_->value } "expr", $tree;
+ csel_each { say $_->value } {csel_opt1=>..., ...}, "expr", $tree1, $tree2;
+
+Execute callback for every node that matches expression. Basically shortcut for:
+
+ my @nodes = csel(...);
+ for (@nodes) { $callback->($_) )}
 
 =head2 parse_csel
 

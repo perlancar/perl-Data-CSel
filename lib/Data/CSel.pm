@@ -1390,13 +1390,16 @@ C<children> to set children nodes.
 
 Usage:
 
- csel_each { say $_->value } "expr", $tree;
- csel_each { say $_->value } {csel_opt1=>..., ...}, "expr", $tree1, $tree2;
+ csel_each { say $_[0]->value } "expr", $tree;
+ csel_each { say $_->value    } {csel_opt1=>..., ...}, "expr", $tree1, $tree2;
 
 Execute callback for every node that matches expression. Basically shortcut for:
 
  my @nodes = csel(...);
  for (@nodes) { $callback->($_) )}
+
+The callback will retrieve the node either in the first element of C<@_> or in
+the localized C<$_> for convenience.
 
 =head2 parse_csel
 

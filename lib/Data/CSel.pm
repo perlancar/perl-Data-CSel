@@ -1305,6 +1305,8 @@ C<[attr =~ /re/]>.
 Some CSS pseudo-classes only make sense for a DOM or a visual browser, e.g.
 C<:link>, C<:visited>, C<:hover>, so they are not supported.
 
+CSS selector does not sport C<:parent>.
+
 =head3 There is no concept of CSS namespaces
 
 CSS namespaces are used when there are foreign elements (e.g. SVG in addition to

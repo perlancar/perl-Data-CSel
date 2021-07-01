@@ -1,3 +1,11 @@
+0.124   2021-07-01  Released-By: PERLANCAR; Urgency: medium
+
+	- Add experimental :parent pseudo-class.
+
+	- [bugfix] the implementation for :root did not observe custom
+	  get_parent_method.
+
+
 0.123   2020-04-09  Released-By: PERLANCAR; Urgency: medium
 
 	- Add csel_each().

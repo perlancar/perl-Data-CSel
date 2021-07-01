@@ -618,7 +618,7 @@ sub _simpsel {
             } elsif ($pc eq 'nth-last-of-type') {
                 @res = grep { Code::Includable::Tree::NodeMethods::is_nth_last_child_of_type($_, $f->{args}[0]) } @res;
             } elsif ($pc eq 'root') {
-                @res = grep { !$_->parent } @res;
+                @res = grep { Code::Includable::Tree::NodeMethods::is_root($_) } @res;
             } elsif ($pc eq 'empty') {
                 @res = grep { my @c = Code::Includable::Tree::NodeMethods::_children_as_list($_); !@c } @res;
             } elsif ($pc eq 'has') {

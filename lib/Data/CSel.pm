@@ -633,6 +633,8 @@ sub _simpsel {
                 my %matches_refaddrs;
                 for (@matches) { $matches_refaddrs{refaddr($_)}++ }
                 @res = grep { !$matches_refaddrs{refaddr($_)} } @res;
+            } elsif ($pc eq 'parent') {
+                @res = _uniq_objects(map { Code::Includable::Tree::NodeMethods::retrieve_parent($_) } @res);
             } else {
                 die "Unsupported pseudo-class '$pc'";
             }
@@ -1242,9 +1244,15 @@ type.
 
 Select only root node(s).
 
+=item * C<:parent>
+
+Select the node's parent.
+
 =item * C<:empty>
 
 Select only leaf node(s).
+
+See also C<:has>.
 
 =item * C<:not(S)>
 
@@ -1269,6 +1277,8 @@ Example:
  :not(T)
 
 will select all objects that have a descendant of type C<T>.
+
+See also: C<:parent>.
 
 =back
 

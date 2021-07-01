@@ -619,6 +619,12 @@ sub _simpsel {
                 @res = grep { Code::Includable::Tree::NodeMethods::is_nth_last_child_of_type($_, $f->{args}[0]) } @res;
             } elsif ($pc eq 'root') {
                 @res = grep { Code::Includable::Tree::NodeMethods::is_root($_) } @res;
+            } elsif ($pc eq 'has-min-children') {
+                @res = grep { Code::Includable::Tree::NodeMethods::has_min_children($_, $f->{args}[0]) } @res;
+            } elsif ($pc eq 'has-max-children') {
+                @res = grep { Code::Includable::Tree::NodeMethods::has_max_children($_, $f->{args}[0]) } @res;
+            } elsif ($pc eq 'has-children-between') {
+                @res = grep { Code::Includable::Tree::NodeMethods::has_children_between($_, $f->{args}[0], $f->{args}[1]) } @res;
             } elsif ($pc eq 'empty') {
                 @res = grep { my @c = Code::Includable::Tree::NodeMethods::_children_as_list($_); !@c } @res;
             } elsif ($pc eq 'has') {
@@ -1243,6 +1249,18 @@ type.
 =item * C<:root>
 
 Select only root node(s).
+
+=item * C<:has-min-children(m)>
+
+Select only objects that have at least I<m> direct children.
+
+=item * C<:has-max-children(n)>
+
+Select only objects that have at most I<n> direct children.
+
+=item * C<:has-children-between(m,n)>
+
+Select only objects that have between I<m> and I<n> direct children.
 
 =item * C<:parent>
 

@@ -857,6 +857,8 @@ example:
 
 will select only objects that has an attribute C<date>, and the value of C<date>
 is an object that has an attribute C<month>, and the value of C<month> is 12.
+When there is a failure in the chain somewhere (e.g. the C<date> object does not
+have the C<month> attribute), the whole expression evaluates to false.
 
 =head3 Literal
 

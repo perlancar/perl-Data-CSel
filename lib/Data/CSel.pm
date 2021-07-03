@@ -794,11 +794,12 @@ sub csel_each(&;@) {
 
  use Data::CSel qw(csel csel_each);
 
+ # using csel():
  my @cells = csel("Table[name=~/data/i] TCell[value != '']:first", $tree);
  for (@cells) { say $_->value }
 
-Using L</csel_each>:
-
+ # using csel_each():
+ csel_each { say $_->value } "Table[name=~/data/i] TCell[value != '']:first", $tree;
 
 Using selection object:
 

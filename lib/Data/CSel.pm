@@ -24,6 +24,8 @@ our @CLASS_PREFIXES;
 
 our $_i1;
 
+sub _fail { die __PACKAGE__.": $_[0] at offset ".pos()."\n" }
+
 our $RE =
     qr{
           (?&SELECTORS) (?{ $_ = $^R->[1] })
@@ -42,7 +44,7 @@ our $RE =
                       })
                   )*
                   \s*
-              )
+              ) # SELECTORS
 
               (?<SELECTOR>
                   (?{ [$^R, []] })
@@ -64,7 +66,7 @@ our $RE =
                           $^R->[0];
                       })
                   )*
-              )
+              ) # SELECTOR
 
               (?<SIMPLE_SELECTOR>
                   (?:
@@ -112,7 +114,7 @@ our $RE =
                           )*
                       )
                   )
-              )
+              ) # SIMPLE_SELECTOR
 
               (?<TYPE_NAME>
                   [A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z0-9_]+)*|\*
@@ -152,7 +154,7 @@ our $RE =
                           $^R->[0];
                       })
                   )
-              )
+              ) # FILTER
 
               (?<ATTR_SELECTOR>
                   \[\s*
@@ -169,7 +171,7 @@ our $RE =
                           \s*(?:=~|!~)\s* |
                           \s*(?:!=|<>|>=?|<=?|==?)\s* |
                           \s++(?:eq|ne|lt|gt|le|ge)\s++ |
-                          \s+(?:isnt|is)\s+
+                          \s+(?:isnt|is|has|hasnt|in|notin)\s+
                       )
                       (?{
                           my $op = $^N;
@@ -193,7 +195,7 @@ our $RE =
                       )
                   )?
                   \s*\]
-              )
+              ) # ATTR_SELECTOR
 
               (?<ATTR_NAME>
                   [A-Za-z_][A-Za-z0-9_]*
@@ -233,7 +235,7 @@ our $RE =
                       )?
                       \s*\)\s*
                   )?
-              )
+              ) # ATTR_SUBJECT
 
               (?<ATTR_SUBJECTS>
                   (?{ $_i1 = 0; [$^R, []] })
@@ -265,9 +267,11 @@ our $RE =
                           $^R->[0];
                       })
                   )*
-              )
+              ) # ATTR_SUBJECTS
 
               (?<LITERAL>
+                  (?&LITERAL_ARRAY)
+              |
                   (?&LITERAL_NUMBER)
               |
                   (?&LITERAL_STRING_DQUOTE)
@@ -281,7 +285,31 @@ our $RE =
                   false (?{ [$^R, 0] })
               |
                   null (?{ [$^R, undef] })
-              )
+              ) # LITERAL
+
+              (?<LITERAL_ARRAY>
+                  \[\s*
+                  (?{ [$^R, []] })
+                  (?:
+                      (?&LITERAL) # [[$^R, []], $val]
+                      (?{ [$^R->[0][0], [$^R->[1]]] })
+                      \s*
+                      (?:
+                          (?:
+                              ,\s* (?&LITERAL)
+                              (?{ push @{$^R->[0][1]}, $^R->[1]; $^R->[0] })
+                          )*
+                      |
+                          (?: [^,\]]|\z ) (?{ _fail "Expected ',' or '\x5d'" })
+                      )
+                  )?
+                  \s*
+                  (?:
+                      \]
+                  |
+                      (?:.|\z) (?{ _fail "Expected closing of array" })
+                  )
+              ) # LITERAL_ARRAY
 
               (?<LITERAL_NUMBER>
                   (
@@ -386,7 +414,7 @@ our $RE =
                           )?
                       )
                   )
-              )
+              ) # PSEUDOCLASS
           ) # DEFINE
   }x;
 
@@ -545,6 +573,38 @@ sub _simpsel {
                         next ITEM unless !$val;
                     } else {
                         next ITEM unless $val;
+                    }
+                } elsif ($op eq 'has') {
+                    next ITEM unless defined $val && ref($val) eq 'ARRAY'
+                        && defined $opv;
+                    if (looks_like_number($opv)) {
+                        next ITEM unless grep { $_ == $opv } @$val;
+                    } else {
+                        next ITEM unless grep { $_ eq $opv } @$val;
+                    }
+                } elsif ($op eq 'hasnt') {
+                    next ITEM unless defined $val && ref($val) eq 'ARRAY'
+                        && defined $opv;
+                    if (looks_like_number($opv)) {
+                        next ITEM if grep { $_ == $opv } @$val;
+                    } else {
+                        next ITEM if grep { $_ eq $opv } @$val;
+                    }
+                } elsif ($op eq 'in') {
+                    next ITEM unless defined $val && defined $opv &&
+                        ref($opv) eq 'ARRAY';
+                    if (looks_like_number($val)) {
+                        next ITEM unless grep { $_ == $val } @$opv;
+                    } else {
+                        next ITEM unless grep { $_ eq $val } @$opv;
+                    }
+                } elsif ($op eq 'notin') {
+                    next ITEM unless defined $val && defined $opv &&
+                        ref($opv) eq 'ARRAY';
+                    if (looks_like_number($val)) {
+                        next ITEM if grep { $_ == $val } @$opv;
+                    } else {
+                        next ITEM if grep { $_ eq $val } @$opv;
                     }
                 } elsif ($op eq '=~') {
                     next ITEM unless $val =~ $opv;
@@ -908,6 +968,12 @@ more regex modifier characters m, s, i):
  //
  /ab(c|d)/i
 
+B<Array>. Examples:
+
+ []
+ [1,2,3]
+ ["foo", "bar","baz"]
+
 =head3 Operators
 
 The following are supported operators:
@@ -1138,6 +1204,26 @@ value.
  Person[age isnt null]
 
 will select all Person objects where age is defined.
+
+=item * C<has> and C<hasnt>
+
+Attribute value must be array. Will evaluate to true if one of the elements
+matches the operand.
+
+Examples:
+
+ Headline[tags has "tag1"]
+ Headline[tags has "tag2"][tags has "tag3"][tags hasnt "tag4"]
+
+=item * C<in> and C<notin>
+
+Operand must be array. Will evaluate to true if one of the elements of array
+matches the attribute value.
+
+Examples:
+
+ Headline[level in [1,2,3]]
+ Headline[level not in [1,2]][tags notin ["old","deprecated"]]
 
 =back
 

@@ -301,6 +301,12 @@ subtest "simple selector: attribute selector" => sub {
         result => [@m{qw/d1 d2/}],
     );
     test_csel(
+        name   => 'op:=~ (i) 2',
+        expr   => "[str1 =~ qr([Ab])i]",
+        nodes  => [$m{root}],
+        result => [@m{qw/d1 d2/}],
+    );
+    test_csel(
         name   => 'op:!~',
         expr   => "[str1 !~ /[a-z]/]",
         nodes  => [$m{root}],

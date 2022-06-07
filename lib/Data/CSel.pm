@@ -1,10 +1,5 @@
 package Data::CSel;
 
-# AUTHORITY
-# DATE
-# DIST
-# VERSION
-
 use 5.020000;
 use strict;
 use warnings;
@@ -14,6 +9,12 @@ use Code::Includable::Tree::NodeMethods;
 use Scalar::Util qw(blessed refaddr looks_like_number);
 
 use Exporter qw(import);
+
+# AUTHORITY
+# DATE
+# DIST
+# VERSION
+
 our @EXPORT_OK = qw(
                        csel
                        csel_each
@@ -353,16 +354,29 @@ our $RE =
 
               (?<LITERAL_REGEX>
                   (
-                      /
                       (?:
-                          [^/\\]+
-                      |
-                          \\ .
-                      )*
-                      /
+                          (?:
+                              /
+                              (?:
+                                  [^/\\]+
+                              |
+                                  \\ .
+                              )*
+                              /
+                          ) |
+                          (?:
+                              qr\(
+                              (?:
+                                  [^\)\\]+
+                              |
+                                  \\ .
+                              )*
+                              \)
+                          )
+                      )
                       [ims]*
                   )
-                  (?{ my $re = eval "qr$^N"; die if $@; [$^R, $re] })
+                  (?{ my $code = substr($^N, 0, 2) eq "qr" ? $^N : "qr$^N"; my $re = eval $code; die if $@; [$^R, $re] })
               )
 
               (?<PSEUDOCLASS_NAME>
@@ -963,11 +977,12 @@ is equivalent to:
 
  [name = 'ujang']
 
-B<Regex literal>. Must be delimited by C</> ... C</>, can be followed by zero of
-more regex modifier characters m, s, i):
+B<Regex literal>. Must be delimited by C</.../> or C<qr(...)>, can be followed
+by zero of more regex modifier characters m, s, i):
 
  //
  /ab(c|d)/i
+ qr(foo/bar)
 
 B<Array>. Examples:
 
@@ -1170,7 +1185,7 @@ is the same as:
 
 Filter only objects where the attribute named I<attr> has the value matching
 regular expression I<value>. Operand should be a regex literal. Regex literal
-must be delimited by C<//>.
+must be delimited by C</.../> or C<qr(...)>.
 
 Example:
 
@@ -1179,7 +1194,7 @@ Example:
 selects all C<Person> objects that have C<first_name()> with the value
 matching the regex C</^Al/>.
 
- Person[first_name =~ /^al/i]
+ Person[first_name =~ qr(^al)i]
 
 Same as previous example except the regex is case-insensitive.
 

@@ -439,7 +439,7 @@ sub parse_csel {
     local $^R;
     eval { $_ =~ $re } and return $_;
     die $@ if $@;
-    return undef;
+    return undef; ## no critic: Subroutines::ProhibitExplicitReturnUndef
 }
 
 sub _uniq_objects {
@@ -792,7 +792,7 @@ sub csel {
     }
 }
 
-sub csel_each(&;@) {
+sub csel_each(&;@) { ## no critic: Subroutines::ProhibitSubroutinePrototypes
     my $cb = shift;
     for my $node (csel(@_)) {
         local $_ = $node;
